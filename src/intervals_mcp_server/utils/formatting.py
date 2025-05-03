@@ -10,7 +10,7 @@ from typing import Any, List
 
 class Section:
     """Context manager for conditionally adding sections to output.
-    
+
     Only adds the heading if any lines are actually written.
     Lines are only written if the value is not None.
     """
@@ -312,7 +312,10 @@ def format_wellness_entry(entries: dict[str, Any]) -> str:  # pylint: disable=lo
     return "\n".join(lines)
 
 
-def format_event_summary(event: dict[str, Any]) -> str:
+
+def format_event_summary(
+    event: dict[str, Any], shared_event: dict[str, Any] | None = None
+) -> str:
     """Format a basic event summary into a readable string."""
 
     lines = []
@@ -323,7 +326,20 @@ def format_event_summary(event: dict[str, Any]) -> str:
         main_section.append("Name: {name}")
         main_section.append("Description: \n{description}")
         main_section.lines[-1] = main_section.lines[-1].strip()
+        _format_shared_event_summary(lines, shared_event)
     return "\n".join(lines)
+
+
+def _format_shared_event_summary(lines: list[str], shared_event: dict[str, Any] | None) -> None:
+    if not shared_event:
+        return
+    with Section(lines, data=shared_event) as main_section:
+        main_section.append("Shared Event Description: {description}")
+        main_section.append("Sport Types: {types}")
+        main_section.append("Event Website: {website}")
+        main_section.append("Location: {location}")
+        main_section.append("Address: {address}")
+        main_section.append("Country: {country}")
 
 
 def format_event_details(event: dict[str, Any]) -> str:
