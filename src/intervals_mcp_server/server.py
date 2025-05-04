@@ -1012,6 +1012,52 @@ async def get_races(athlete_id: str | None = None, api_key: str | None = None) -
     return races_summary
 
 
+@mcp.tool()
+async def get_power_curves(
+    athlete_id: str | None = None,
+    api_key: str | None = None,
+    curves: str = "42d",
+    type_: str = "Ride",
+) -> list[dict[str, float]] | str:
+    """Get power curves for an athlete from Intervals.icu
+
+    Args:
+        athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
+        api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
+        curves: Comma separated list of curves to return. Default is "1y". Possible values are:
+            - 1y (past year)
+            - 2y (past 2 years) etc.
+            - 42d (past 42 days) etc.
+            - s0 (current season)
+            - s1 (previous season) etc.
+            - all (all time)
+            - r.2023-10-01.2023-10-31 (date range)
+        type_: The sport (Ride, Run, Swim, etc.)
+
+    Returns:
+        List of dictionaries containing power curves for the specified athlete and sport
+    """
+    # Use provided athlete_id or fall back to global ATHLETE_ID
+    athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
+    if not athlete_id_to_use:
+        return "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
+
+    # Call the Intervals.icu API
+    params = {"curves": curves, "type": type_}
+
+    result = await make_intervals_request(
+        url=f"/athlete/{athlete_id_to_use}/power-curves",
+        api_key=api_key,
+        params=params,
+    )
+
+    if isinstance(result, dict) and "error" in result:
+        error_message = result.get("message", "Unknown error")
+        return f"Error fetching power curves: {error_message}"
+
+    return result["list"] if isinstance(result, dict) and "list" in result else []
+
+
 # Run the server
 if __name__ == "__main__":
     mcp.run()
