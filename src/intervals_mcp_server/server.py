@@ -1059,6 +1059,41 @@ async def get_power_curves(
 
 
 @mcp.tool()
+async def get_activity_power_curves(
+    activity_id: str,
+    api_key: str | None = None,
+    type_: str = "power",
+) -> list[dict[str, float]] | str:
+    """Get power curves for a specific activity from Intervals.icu
+
+    Args:
+        activity_id: The Intervals.icu activity ID
+        api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
+        type_: The curve type. Default is "power". Unsure what possible values are.
+
+    Returns:
+        List of dictionaries containing power curve data for the specified activity
+    """
+    # Validate required activity_id
+    if not activity_id:
+        return "Error: Activity ID is required."
+
+    # Call the Intervals.icu API
+    params = {"type": type_}
+    params = {}
+
+    result = await make_intervals_request(
+        url=f"/activity/{activity_id}/power-curves", api_key=api_key, params=params
+    )
+
+    if isinstance(result, dict) and "error" in result:
+        error_message = result.get("message", "Unknown error")
+        return f"Error fetching activity power curve: {error_message}"
+
+    return result if isinstance(result, list) else []
+
+
+@mcp.tool()
 async def get_pace_curves(
     athlete_id: str | None = None,
     api_key: str | None = None,
