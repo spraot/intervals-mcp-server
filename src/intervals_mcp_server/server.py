@@ -1080,7 +1080,6 @@ async def get_activity_power_curves(
 
     # Call the Intervals.icu API
     params = {"type": type_}
-    params = {}
 
     result = await make_intervals_request(
         url=f"/activity/{activity_id}/power-curves", api_key=api_key, params=params
@@ -1137,6 +1136,43 @@ async def get_pace_curves(
         return f"Error fetching pace curves: {error_message}"
 
     return result["list"] if isinstance(result, dict) and "list" in result else []
+
+
+@mcp.tool()
+async def get_activity_pace_curve(
+    activity_id: str,
+    api_key: str | None = None,
+    gap: bool = False,
+) -> dict[str, float] | str:
+    """Get activity pace curve in JSON format
+
+    Args:
+        activity_id: The Intervals.icu activity ID
+        api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
+        gap: Boolean indicating whether to use gradient adjusted pace (default: False)
+
+    Returns:
+        Dictionary containing pace curve data for the specified activity
+    """
+    # Validate required activity_id
+    if not activity_id:
+        return "Error: Activity ID is required."
+
+    # Set up the parameters
+    params = {"gap": gap}
+
+    # Call the Intervals.icu API
+    result = await make_intervals_request(
+        url=f"/activity/{activity_id}/pace-curve.json",
+        api_key=api_key,
+        params=params,
+    )
+
+    if isinstance(result, dict) and "error" in result:
+        error_message = result.get("message", "Unknown error")
+        return f"Error fetching activity power curve: {error_message}"
+
+    return result if isinstance(result, dict) else {}
 
 
 @mcp.tool()
