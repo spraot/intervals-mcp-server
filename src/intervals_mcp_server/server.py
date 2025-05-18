@@ -510,6 +510,67 @@ async def get_events(
 
 
 @mcp.tool()
+async def list_events(
+    athlete_id: str | None = None,
+    api_key: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    category: str | None = None,
+    limit: int = 30,
+) -> list[dict] | str:
+    """Get events for an athlete from Intervals.icu
+
+    Args:
+        athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
+        api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
+        start_date: Start date in YYYY-MM-DD format (optional, defaults to today)
+        end_date: End date in YYYY-MM-DD format (optional, defaults to 7 days from start_date)
+        category: Filter by event category (optional, e.g., "WORKOUT,RACE_A,RACE_B,RACE_C")
+        limit: Maximum number of events to return (optional, defaults to 30)
+
+    Returns:
+        List of event dictionaries or error message
+    """
+    # Use provided athlete_id or fall back to global ATHLETE_ID
+    athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
+    if not athlete_id_to_use:
+        return "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
+
+    # Use existing format parameter to ensure JSON output
+    format_param = ""
+
+    # Build query parameters
+    params = {}
+    if start_date:
+        params["oldest"] = start_date
+    if end_date:
+        params["newest"] = end_date
+    if category:
+        params["category"] = category
+    if limit:
+        params["limit"] = limit
+
+    # Call the Intervals.icu API using the existing helper function
+    result = await make_intervals_request(
+        url=f"/athlete/{athlete_id_to_use}/events{format_param}",
+        api_key=api_key,
+        params=params,
+    )
+
+    # Handle potential errors
+    if isinstance(result, dict) and "error" in result:
+        error_message = result.get("message", "Unknown error")
+        return f"Error fetching events: {error_message}"
+
+    # Process and format the events for better readability
+    if isinstance(result, list):
+        # Return the raw list for maximum flexibility
+        return result
+
+    return "No events found or invalid response format"
+
+
+@mcp.tool()
 async def get_event_by_id(
     event_id: str,
     athlete_id: str | None = None,
