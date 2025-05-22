@@ -1269,6 +1269,137 @@ async def get_athlete(
     return result if isinstance(result, dict) else {}
 
 
+@mcp.tool()
+async def get_power_hr_curve(
+    athlete_id: str | None = None,
+    api_key: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> dict | str:
+    """Get the athlete's power vs heart rate curve for a date range
+
+    Args:
+        athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
+        api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
+        start_date: Starting local date (ISO-8601 format, e.g., '2024-01-01')
+        end_date: Ending local date (ISO-8601 format, inclusive, e.g., '2024-12-31')
+
+    Returns:
+        Dictionary containing power vs heart rate curve data including:
+        - athleteId: The athlete ID
+        - start/end: Date range
+        - minWatts/maxWatts: Power range
+        - bucketSize: Watts per bucket
+        - bpm: Array of heart rate values
+        - cadence: Array of cadence values
+        - minutes: Array of time spent at each power/HR combination
+        - lthr: Lactate threshold heart rate
+        - max_hr: Maximum heart rate
+        - ftp: Functional threshold power
+    """
+    # Use provided athlete_id or fall back to global ATHLETE_ID
+    athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
+    if not athlete_id_to_use:
+        return "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
+
+    # Parse date parameters
+    if not start_date:
+        start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    if not end_date:
+        end_date = datetime.now().strftime("%Y-%m-%d")
+
+    # Call the Intervals.icu API
+    params = {"start": start_date, "end": end_date}
+
+    result = await make_intervals_request(
+        url=f"/athlete/{athlete_id_to_use}/power-hr-curve",
+        api_key=api_key,
+        params=params,
+    )
+
+    if isinstance(result, dict) and "error" in result:
+        return f"Error fetching power_hr curve: {result.get('message')}"
+
+    return result if isinstance(result, dict) else {}
+
+
+@mcp.tool()
+async def get_activity_power_vs_hr(
+    activity_id: str, api_key: str | None = None
+) -> dict | str:
+    """Get activity power vs heart rate data in JSON format
+
+    Args:
+        activity_id: The Intervals.icu activity ID
+        api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
+
+    Returns:
+        Dictionary containing power vs heart rate data for the specified activity including:
+        - bucketSize: Watts per bucket for grouping
+        - warmup/cooldown: Time periods excluded from analysis
+        - elapsedTime: Total activity time
+        - hrLag: Heart rate lag in seconds
+        - powerHr: Overall power/HR ratio
+        - powerHrFirst/powerHrSecond: First/second half ratios
+        - decoupling: Cardiac drift percentage
+        - powerHrZ2: Power/HR ratio in zone 2
+        - medianCadenceZ2/avgCadenceZ2: Cadence metrics for zone 2
+        - series: Array of buckets with power, HR, cadence data
+        - curves: Fitted curves and trend analysis
+    """
+    # Validate required activity_id
+    if not activity_id:
+        return "Error: Activity ID is required."
+
+    # Call the Intervals.icu API
+    result = await make_intervals_request(
+        url=f"/activity/{activity_id}/power-vs-hr", api_key=api_key
+    )
+
+    if isinstance(result, dict) and "error" in result:
+        return f"Error fetching activity power vs HR data: {result.get('message')}"
+
+    return result if isinstance(result, dict) else {}
+
+
+@mcp.tool()
+async def get_activity_hr_curve(
+    activity_id: str, api_key: str | None = None
+) -> dict | str:
+    """Get activity heart rate curve in JSON format
+
+    Args:
+        activity_id: The Intervals.icu activity ID
+        api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
+
+    Returns:
+        Dictionary containing heart rate curve data for the specified activity including:
+        - id: Activity ID
+        - filters: Applied filters
+        - label: Curve label
+        - start_date_local/end_date_local: Activity date
+        - secs: Array of durations in seconds
+        - values: Array of heart rate values (BPM)
+        - activity_id: Array of activity IDs for each point
+        - start_index/end_index: Stream indexes for each effort
+        - submax_values: Submaximal efforts data
+        - And other curve metadata
+    """
+    # Validate required activity_id
+    if not activity_id:
+        return "Error: Activity ID is required."
+
+    # Call the Intervals.icu API
+    result = await make_intervals_request(
+        url=f"/activity/{activity_id}/hr-curve.json", api_key=api_key
+    )
+
+    if isinstance(result, dict) and "error" in result:
+        return f"Error fetching activity HR curve: {result.get('message')}"
+
+    return result if isinstance(result, dict) else {}
+
+
 # Run the server
 if __name__ == "__main__":
     mcp.run()
