@@ -99,7 +99,7 @@ Intervals: {len(workout.get("intervals", []))}
 """
 
 def format_wellness_entry(entries: dict[str, Any]) -> str:
-    lines = []
+    lines = ["Wellness Data:"]
     lines.append(f"Date: {entries.get('id', 'N/A')}")
     lines.append("")
 
@@ -112,7 +112,8 @@ def format_wellness_entry(entries: dict[str, Any]) -> str:
         ("ctlLoad", "CTL Load"),
         ("atlLoad", "ATL Load"),
     ]:
-        training_metrics.append(f"- {label}: {entries[k]}")
+        if entries.get(k) is not None:
+            training_metrics.append(f"- {label}: {entries[k]}")
     if training_metrics:
         lines.append("Training Metrics:")
         lines.extend(training_metrics)
