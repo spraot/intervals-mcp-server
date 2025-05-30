@@ -67,7 +67,7 @@ def test_format_event_summary():
     Test that format_event_summary returns a string containing the event date and type.
     """
     event = {
-        "date": "2024-01-01",
+        "start_date_local": "2024-01-01",
         "id": "e1",
         "name": "Event1",
         "description": "desc",
