@@ -7,9 +7,16 @@ Mock classes are used to simulate httpx responses and client behavior.
 
 import asyncio
 import logging
+import os
+import pathlib
+import sys
 from json import JSONDecodeError
 
-import intervals_mcp_server.server as server
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
+os.environ.setdefault("API_KEY", "test")
+os.environ.setdefault("ATHLETE_ID", "i1")
+
+from intervals_mcp_server import server  # pylint: disable=wrong-import-position
 
 
 class MockBadJSONResponse:
@@ -22,9 +29,11 @@ class MockBadJSONResponse:
         self.status_code = 200
 
     def raise_for_status(self):
+        """Mock raise_for_status that does nothing."""
         return None
 
     def json(self):
+        """Raise JSONDecodeError to simulate invalid JSON."""
         raise JSONDecodeError("Expecting value", "bad", 0)
 
 
@@ -34,6 +43,7 @@ class MockAsyncClient:
     Always returns a MockBadJSONResponse from get().
     """
     def __init__(self, *args, **kwargs):
+        # Accept any arguments to match httpx.AsyncClient's interface
         pass
 
     async def __aenter__(self):
@@ -42,7 +52,8 @@ class MockAsyncClient:
     async def __aexit__(self, exc_type, exc, tb):
         pass
 
-    async def get(self, *args, **kwargs):
+    async def get(self, _url, **_kwargs):
+        """Mock get method that returns MockBadJSONResponse."""
         return MockBadJSONResponse()
 
 
