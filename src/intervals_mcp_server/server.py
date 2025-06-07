@@ -692,8 +692,6 @@ async def post_events(
     
     # Determine workout type
     workout_type = None
-    
-    # First check if type is explicitly provided in data
     if data and "type" in data:
         workout_type = data["type"]
     else:
@@ -710,8 +708,24 @@ async def post_events(
         elif any(keyword in name_lower for keyword in ["row", "rowing"]):
             workout_type = "Row"
         else:
-            # Default to Run for workouts with steps (most common for interval training)
-            workout_type = "Run"
+            # Default to Ride, probably the most common type on Intervals
+            workout_type = "Ride"
+
+    # Determine target
+    target = None
+    if data and "target" in data:
+        target = data["target"]
+    else:
+        # Fall back to keyword detection in name
+        name_lower = name.lower() if name else ""
+        if any(keyword in name_lower for keyword in ["power"]):
+            target = "POWER"
+        elif any(keyword in name_lower for keyword in ["pace"]):
+            target = "PACE"
+        elif any(keyword in name_lower for keyword in ["hr"]):
+            target = "HR"
+        else:
+            target = "AUTO"
 
     final_data.update({
             "start_date_local": start_date + "T00:00:00",
@@ -719,7 +733,7 @@ async def post_events(
             "name": name,
             "description": "\n".join(description_lines).strip(),
             "type": workout_type,
-            "target": "POWER" if "Power" in name else "PACE" if "pace" in name else "HR" if "hr" in name else "AUTO",
+            "target": target,
             "moving_time": sum(
                 convert_duration(step["duration"]) for step in expanded_steps
             ),
