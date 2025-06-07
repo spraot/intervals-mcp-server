@@ -655,6 +655,7 @@ async def post_events(
             "start_date": "2025-01-14",
             "name": "Run - VO2 Max Intervals",
             "type": "Run",  # Optional: explicitly specify workout type (Ride, Run, Swim, etc.)
+            "target": "POWER",  # Optional: explicitly specify target (POWER, PACE, HR, AUTO)
             "steps": [
                 {"duration": "15m", "power": "80%",  "description": "Warm-up"},
                 {"duration": "3m", "power": "110%",  "description": "High-intensity interval"},
@@ -669,7 +670,7 @@ async def post_events(
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
         start_date: Start date in YYYY-MM-DD format (optional, defaults to today)
         name: Name of the activity
-        data: Workout data including steps and optional type
+        data: Workout data including steps and optional type and target
     """
     # Use provided athlete_id or fall back to global ATHLETE_ID
     athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
