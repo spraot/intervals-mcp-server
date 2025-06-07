@@ -616,27 +616,21 @@ async def get_wellness_data(
 
     return wellness_summary
 
+def convert_distance(distance):
+    if "km" in distance:
+        return float(distance.replace("km", "").strip()) * 1000  # Convert km to meters
+    elif "m" in distance:
+        return int(distance.replace("mtr", "").strip())  # Keep meters as is
+
 def convert_duration(duration):
-    if "km" in duration:
-        return float(duration.replace("km", "")) * 1000  # Convert km to meters
-    elif "m" in duration and not duration.endswith("km"):
-        return int(duration.replace("m", "")) * 60  # Convert minutes to seconds
+    if "h" in duration:
+        return int(duration.replace("h", "").strip()) * 3600  # Convert hours to seconds
+    elif "m" in duration:
+        return int(duration.replace("m", "").strip()) * 60  # Convert minutes to seconds
     elif "s" in duration:
-        return int(duration.replace("s", ""))  # Keep seconds as is
+        return int(duration.replace("s", "").strip())  # Keep seconds as is
     else:
         return int(duration)  # Default for unknown formats
-
-# Expand repeated intervals into separate blocks
-def expand_repeats(steps):
-    expanded_steps = []
-    for step in steps:
-        if "description" in step and step["description"].endswith("x"):
-            repeat_count = int(step["description"].replace("x", "").strip())
-            for _ in range(repeat_count):
-                expanded_steps.extend(steps[steps.index(step) + 1:steps.index(step) + 3])
-        elif "duration" in step:
-            expanded_steps.append(step)
-    return expanded_steps
 
 @mcp.tool()
 async def post_events(
@@ -644,33 +638,60 @@ async def post_events(
     api_key: str | None = None,
     start_date: str | None = None,
     name: str | None = None,
-    data: dict | None = None,
+    steps: list | None = None,
+    workout_type: str | None = None,
+    target_type: str | None = None,
+    moving_time: str | None = None,
+    distance: str | None = None,
 
 ) -> str:
     """Post events for an athlete to Intervals.icu this follows the event api from intervals.icu as listed 
     in https://intervals.icu/api-docs.html#post-/api/v1/athlete/-id-/events
 
-    An example used from https://github.com/h3xh0und/intervals.icu-api/blob/main/upload_training.py how to format the data for percentage of ftp in power
-        {
+    Example:
+    {
             "start_date": "2025-01-14",
             "name": "Run - VO2 Max Intervals",
-            "type": "Run",  # Optional: explicitly specify workout type (Ride, Run, Swim, etc.)
-            "target": "POWER",  # Optional: explicitly specify target (POWER, PACE, HR, AUTO)
+            "workout_type": "Run",  # Workout type (Ride, Run, Swim, etc.)
+            "target_type": "POWER",  # Target (POWER, PACE, HR, AUTO)
+            "moving_time": "1h",  # Total time of the workout
+            "distance": "10km",  # Total distance of the workout
             "steps": [
-                {"duration": "15m", "power": "80%",  "description": "Warm-up"},
-                {"duration": "3m", "power": "110%",  "description": "High-intensity interval"},
-                {"duration": "3m", "power": "80%",  "description": "Recovery"},
-                {"duration": "3m", "power": "110%",  "description": "High-intensity interval"},
-                {"duration": "10m", "power": "80%", "description": "Cool-down"}
+                {"duration": "15m", "target": "80%",  "description": "Warm-up"},
+                {"distance": "500m", "target": "110%",  "description": "High-intensity interval"},
+                {"duration": "90s", "target": "80%",  "description": "Recovery"},
+                {"distance": "500m", "target": "110%",  "description": "High-intensity interval"},
+                {"duration": "10m", "target": "80%", "description": "Cool-down"}
             ]
         }
+    
+    Common workout types:
+        - "Run" for running workouts
+        - "Ride" for cycling workouts  
+        - "Swim" for swimming workouts
+        - "Walk" for walking/hiking
+        - "Row" for rowing
+    
+    Target options:
+        - "POWER" for power-based workouts (cycling)
+        - "PACE" for pace-based workouts (running)
+        - "HR" for heart rate-based workouts
+        - "AUTO" for automatic detection
 
     Args:
         athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
         start_date: Start date in YYYY-MM-DD format (optional, defaults to today)
         name: Name of the activity
-        data: Workout data including steps and optional type and target
+        steps: List of workout steps (each one should have one of duration or distance)
+            - duration: Duration of the step (90s, 15m, 1h, etc.)
+            - distance: Distance of the step (100mtr, 1km, 10km, etc.)
+            - target: Target for the step (given in %, W, pace, etc. as matching the target_type given)
+            - description: Description of the step
+        workout_type: Workout type (Run, Ride, Swim, etc.)
+        target_type: Target metric (POWER, PACE, HR, AUTO)
+        moving_time: Total expected moving time of the workout
+        distance: Total expected distance of the workout
     """
     # Use provided athlete_id or fall back to global ATHLETE_ID
     athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
@@ -682,20 +703,29 @@ async def post_events(
         start_date = datetime.now().strftime("%Y-%m-%d")
 
     description_lines = []
-    expanded_steps = data["steps"]
+    for step in steps:
+        if "duration" in step and "distance" in step:
+            raise ValueError("Step must have either duration or distance, not both")
+        if "duration" not in step and "distance" not in step:
+            raise ValueError("Step must have either duration or distance")
+        if "target" not in step:
+            raise ValueError("Step must have target")
 
-    for step in expanded_steps:
-        description_lines.append(f"- {step['duration']} {step['power']}")
+        description_lines.append("- ")
+        if "duration" in step:
+            description_lines[-1] += f"{step['duration']}"
+        if "distance" in step:
+            description_lines[-1] += f"{step['distance']}"
+        description_lines[-1] += f" {step['target']}"
+        if "description" in step:
+            description_lines[-1] += f" ({step['description']})"
         if "cadence" in step:
             description_lines[-1] += f" ({step['cadence']})"
 
     final_data = {}
     
     # Determine workout type
-    workout_type = None
-    if data and "type" in data:
-        workout_type = data["type"]
-    else:
+    if not workout_type:
         # Fall back to keyword detection in name
         name_lower = name.lower() if name else ""
         if any(keyword in name_lower for keyword in ["bike", "cycle", "cycling", "ride"]):
@@ -710,23 +740,34 @@ async def post_events(
             workout_type = "Row"
         else:
             # Default to Ride, probably the most common type on Intervals
+            # IMPORTANT: This default means workouts without clear keywords will be created as Rides
+            # To avoid this, always specify "type" in the data dict when creating workouts
             workout_type = "Ride"
 
-    # Determine target
-    target = None
-    if data and "target" in data:
-        target = data["target"]
-    else:
+    # Determine target type
+    if target_type not in ["POWER", "PACE", "HR", "AUTO"]:
         # Fall back to keyword detection in name
         name_lower = name.lower() if name else ""
         if any(keyword in name_lower for keyword in ["power"]):
-            target = "POWER"
+            target_type = "POWER"
         elif any(keyword in name_lower for keyword in ["pace"]):
-            target = "PACE"
+            target_type = "PACE"
         elif any(keyword in name_lower for keyword in ["hr"]):
-            target = "HR"
+            target_type = "HR"
         else:
-            target = "AUTO"
+            target_type = "AUTO"
+
+    if moving_time:
+        moving_time = convert_duration(moving_time)
+    else:
+        if all("duration" in step for step in steps):
+            moving_time = sum(convert_duration(step["duration"]) for step in steps)
+
+    if distance:
+        distance = convert_distance(distance)
+    else:
+        if all("distance" in step for step in steps):
+            distance = sum(convert_distance(step["distance"]) for step in steps)
 
     final_data.update({
             "start_date_local": start_date + "T00:00:00",
@@ -734,10 +775,9 @@ async def post_events(
             "name": name,
             "description": "\n".join(description_lines).strip(),
             "type": workout_type,
-            "target": target,
-            "moving_time": sum(
-                convert_duration(step["duration"]) for step in expanded_steps
-            ),
+            "target": target_type,
+            "moving_time": moving_time,
+            "distance": distance,
         })
     
     # Call the Intervals.icu API

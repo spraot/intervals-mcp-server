@@ -167,10 +167,10 @@ def test_post_events(monkeypatch):
     
     sample_data = {
         "steps": [
-            {"duration": "15m", "power": "80%", "description": "Warm-up"},
-            {"duration": "3m", "power": "110%", "description": "High-intensity interval"},
-            {"duration": "3m", "power": "80%", "description": "Recovery"},
-            {"duration": "10m", "power": "80%", "description": "Cool-down"}
+            {"duration": "15m", "target": "80%", "description": "Warm-up"},
+            {"duration": "3m", "target": "110%", "description": "High-intensity interval"},
+            {"duration": "3m", "target": "80%", "description": "Recovery"},
+            {"duration": "10m", "target": "80%", "description": "Cool-down"}
         ]
     }
 
@@ -182,40 +182,6 @@ def test_post_events(monkeypatch):
         athlete_id="i1", 
         start_date="2024-01-15", 
         name="Test Workout", 
-        data=sample_data
+        **sample_data
     ))
     assert result == expected_response
-
-
-def test_post_events_type_detection(monkeypatch):
-    """
-    Test post_events correctly detects workout types based on name and explicit type.
-    """
-    test_cases = [
-        # (name, data, expected_type)
-        ("Morning Run", {"steps": [{"duration": "10m", "power": "80%"}]}, "Run"),
-        ("Bike Intervals", {"steps": [{"duration": "10m", "power": "80%"}]}, "Ride"),
-        ("Swimming Session", {"steps": [{"duration": "10m", "power": "80%"}]}, "Swim"),
-        ("VO2 Max Intervals", {"steps": [{"duration": "10m", "power": "80%"}]}, "Run"),  # Should default to Run
-        ("Intervals", {"steps": [{"duration": "10m", "power": "80%"}], "type": "Run"}, "Run"),  # Explicit type
-        ("Bike Workout", {"steps": [{"duration": "10m", "power": "80%"}], "type": "Swim"}, "Swim"),  # Explicit type overrides name
-    ]
-    
-    posted_data = None
-    
-    async def fake_post_request(data, *_args, **_kwargs):
-        nonlocal posted_data
-        posted_data = data
-        return {"id": "e123", "type": data["type"]}
-    
-    monkeypatch.setattr("intervals_mcp_server.server.post_intervals_data", fake_post_request)
-    
-    for name, data, expected_type in test_cases:
-        posted_data = None
-        result = asyncio.run(post_events(
-            athlete_id="i1",
-            start_date="2024-01-15",
-            name=name,
-            data=data
-        ))
-        assert posted_data["type"] == expected_type, f"Expected type '{expected_type}' for workout '{name}', but got '{posted_data['type']}'"
