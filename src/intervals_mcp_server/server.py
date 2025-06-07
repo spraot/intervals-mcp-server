@@ -27,6 +27,7 @@ Usage:
         - get_event_by_id
         - get_wellness_data
         - get_activity_intervals
+        - post_events
 
     See the README for more details on configuration and usage.
 """
@@ -604,7 +605,7 @@ async def get_wellness_data(
     # Handle both list and dictionary responses
     if isinstance(result, dict):
         for date_str, data in result.items():
-            # Add the date to the data dictionary if it's not already presen
+            # Add the date to the data dictionary if it's not already present
             if isinstance(data, dict) and "date" not in data:
                 data["date"] = date_str
             wellness_summary += format_wellness_entry(data) + "\n\n"
@@ -653,6 +654,7 @@ async def post_events(
         {
             "start_date": "2025-01-14",
             "name": "Run - VO2 Max Intervals",
+            "type": "Run",  # Optional: explicitly specify workout type (Ride, Run, Swim, etc.)
             "steps": [
                 {"duration": "15m", "power": "80%",  "description": "Warm-up"},
                 {"duration": "3m", "power": "110%",  "description": "High-intensity interval"},
@@ -667,7 +669,7 @@ async def post_events(
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
         start_date: Start date in YYYY-MM-DD format (optional, defaults to today)
         name: Name of the activity
-        description: General description of the workout to post.
+        data: Workout data including steps and optional type
     """
     # Use provided athlete_id or fall back to global ATHLETE_ID
     athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
@@ -687,13 +689,36 @@ async def post_events(
             description_lines[-1] += f" ({step['cadence']})"
 
     final_data = {}
+    
+    # Determine workout type
+    workout_type = None
+    
+    # First check if type is explicitly provided in data
+    if data and "type" in data:
+        workout_type = data["type"]
+    else:
+        # Fall back to keyword detection in name
+        name_lower = name.lower() if name else ""
+        if any(keyword in name_lower for keyword in ["bike", "cycle", "cycling", "ride"]):
+            workout_type = "Ride"
+        elif any(keyword in name_lower for keyword in ["run", "running", "jog", "jogging"]):
+            workout_type = "Run"
+        elif any(keyword in name_lower for keyword in ["swim", "swimming", "pool"]):
+            workout_type = "Swim"
+        elif any(keyword in name_lower for keyword in ["walk", "walking", "hike", "hiking"]):
+            workout_type = "Walk"
+        elif any(keyword in name_lower for keyword in ["row", "rowing"]):
+            workout_type = "Row"
+        else:
+            # Default to Run for workouts with steps (most common for interval training)
+            workout_type = "Run"
 
     final_data.update({
             "start_date_local": start_date + "T00:00:00",
             "category": "WORKOUT",
             "name": name,
             "description": "\n".join(description_lines).strip(),
-            "type": "Ride" if "Bike" in name else "Run" if "Run" in name else "Swim",
+            "type": workout_type,
             "target": "POWER" if "Power" in name else "PACE" if "pace" in name else "HR" if "hr" in name else "AUTO",
             "moving_time": sum(
                 convert_duration(step["duration"]) for step in expanded_steps
