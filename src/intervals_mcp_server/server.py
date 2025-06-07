@@ -27,7 +27,7 @@ Usage:
         - get_event_by_id
         - get_wellness_data
         - get_activity_intervals
-        - post_events
+        - add_events
 
     See the README for more details on configuration and usage.
 """
@@ -633,7 +633,7 @@ def convert_duration(duration):
         return int(duration)  # Default for unknown formats
 
 @mcp.tool()
-async def post_events(
+async def add_events(
     athlete_id: str | None = None,
     api_key: str | None = None,
     start_date: str | None = None,
