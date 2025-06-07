@@ -177,7 +177,7 @@ def test_add_events(monkeypatch):
     async def fake_post_request(*_args, **_kwargs):
         return expected_response
 
-    monkeypatch.setattr("intervals_mcp_server.server.post_intervals_data", fake_post_request)
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_post_request)
     result = asyncio.run(add_events(
         athlete_id="i1", 
         start_date="2024-01-15", 
