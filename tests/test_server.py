@@ -8,6 +8,7 @@ These tests use monkeypatching to mock API responses and verify the formatting a
 - get_event_by_id
 - get_wellness_data
 - get_activity_intervals
+- create_workout
 
 The tests ensure that the server's public API returns expected strings and handles data correctly.
 """
@@ -24,15 +25,17 @@ os.environ.setdefault("API_KEY", "test")
 os.environ.setdefault("ATHLETE_ID", "i1")
 
 from intervals_mcp_server.server import (  # pylint: disable=wrong-import-position
+    add_or_update_event,
     calculate_date_info,
+    create_workout,
     get_activities,
     get_activity_details,
+    get_activity_intervals,
     get_current_date_and_time_info,
     get_events,
     get_event_by_id,
     get_wellness_data,
-    get_activity_intervals,
-    add_or_update_event,
+    get_workout_format_examples,
 )
 from tests.sample_data import INTERVALS_DATA  # pylint: disable=wrong-import-position
 
@@ -53,7 +56,9 @@ def test_get_activities(monkeypatch):
     async def fake_request(*_args, **_kwargs):
         return [sample]
 
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    monkeypatch.setattr(
+        "intervals_mcp_server.server.make_intervals_request", fake_request
+    )
     result = asyncio.run(get_activities(athlete_id="1", limit=1, include_unnamed=True))
     assert "Morning Ride" in result
     assert "Activities:" in result
@@ -75,7 +80,9 @@ def test_get_activity_details(monkeypatch):
     async def fake_request(*_args, **_kwargs):
         return sample
 
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    monkeypatch.setattr(
+        "intervals_mcp_server.server.make_intervals_request", fake_request
+    )
     result = asyncio.run(get_activity_details(123))
     assert "Activity: Morning Ride" in result
 
@@ -95,8 +102,12 @@ def test_get_events(monkeypatch):
     async def fake_request(*_args, **_kwargs):
         return [event]
 
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
-    result = asyncio.run(get_events(athlete_id="1", start_date="2024-01-01", end_date="2024-01-02"))
+    monkeypatch.setattr(
+        "intervals_mcp_server.server.make_intervals_request", fake_request
+    )
+    result = asyncio.run(
+        get_events(athlete_id="1", start_date="2024-01-01", end_date="2024-01-02")
+    )
     assert "Test Event" in result
     assert "Events:" in result
 
@@ -116,7 +127,9 @@ def test_get_event_by_id(monkeypatch):
     async def fake_request(*_args, **_kwargs):
         return event
 
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    monkeypatch.setattr(
+        "intervals_mcp_server.server.make_intervals_request", fake_request
+    )
     result = asyncio.run(get_event_by_id("e1", athlete_id="1"))
     assert "Event Details:" in result
     assert "Test Event" in result
@@ -137,7 +150,9 @@ def test_get_wellness_data(monkeypatch):
     async def fake_request(*_args, **_kwargs):
         return wellness
 
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    monkeypatch.setattr(
+        "intervals_mcp_server.server.make_intervals_request", fake_request
+    )
     result = asyncio.run(get_wellness_data(athlete_id="1"))
     assert "Wellness Data:" in result
     assert "2024-01-01" in result
@@ -151,7 +166,9 @@ def test_get_activity_intervals(monkeypatch):
     async def fake_request(*_args, **_kwargs):
         return INTERVALS_DATA
 
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    monkeypatch.setattr(
+        "intervals_mcp_server.server.make_intervals_request", fake_request
+    )
     result = asyncio.run(get_activity_intervals("123"))
     assert "Intervals Analysis:" in result
     assert "Rep 1" in result
@@ -172,7 +189,11 @@ def test_add_or_update_event(monkeypatch):
     _sample_data = {
         "steps": [
             {"duration": "15m", "target": "80%", "description": "Warm-up"},
-            {"duration": "3m", "target": "110%", "description": "High-intensity interval"},
+            {
+                "duration": "3m",
+                "target": "110%",
+                "description": "High-intensity interval",
+            },
             {"duration": "3m", "target": "80%", "description": "Recovery"},
             {"duration": "10m", "target": "80%", "description": "Cool-down"},
         ]
@@ -181,9 +202,16 @@ def test_add_or_update_event(monkeypatch):
     async def fake_post_request(*_args, **_kwargs):
         return expected_response
 
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_post_request)
+    monkeypatch.setattr(
+        "intervals_mcp_server.server.make_intervals_request", fake_post_request
+    )
     result = asyncio.run(
-        add_or_update_event(athlete_id="i1", start_date="2024-01-15", name="Test Workout", workout_type="Ride")
+        add_or_update_event(
+            athlete_id="i1",
+            start_date="2024-01-15",
+            name="Test Workout",
+            workout_type="Ride",
+        )
     )
     assert "Successfully created event:" in result
     assert '"id": "e123"' in result
@@ -247,7 +275,9 @@ def test_get_current_date_and_time_info():  # pylint: disable=locally-disabled, 
     # Verify date and time formats
     datetime.strptime(result["current_date"], "%Y-%m-%d")  # Should not raise
     datetime.strptime(result["current_time"], "%H:%M:%S")  # Should not raise
-    datetime.strptime(result["current_datetime"], "%Y-%m-%dT%H:%M:%S")  # Should not raise
+    datetime.strptime(
+        result["current_datetime"], "%Y-%m-%dT%H:%M:%S"
+    )  # Should not raise
     assert result["utc_datetime"].endswith("Z")  # UTC should end with Z
 
     # Verify timezone offset format (±HH:MM)
@@ -257,7 +287,15 @@ def test_get_current_date_and_time_info():  # pylint: disable=locally-disabled, 
     assert len(result["timezone_name"]) > 0
 
     # Verify day of week is valid
-    valid_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    valid_days = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
     assert result["day_of_week"] in valid_days
 
 
@@ -332,3 +370,145 @@ def test_calculate_date_info_invalid_format():
     result = asyncio.run(calculate_date_info("June 9, 2025"))
     assert "error" in result
     assert result["error"] is True
+
+
+def test_create_workout_success(monkeypatch):
+    """
+    Test create_workout returns a success message when the workout is created successfully.
+    """
+    mock_response = {
+        "id": 12345,
+        "name": "Test Workout",
+        "start_date_local": "2024-01-15",
+        "category": "WORKOUT",
+        "description": "5m z1\n3x\n- 1m z5\n- 2m z1\n5m z1",
+    }
+
+    async def fake_post_request(*args, **kwargs):
+        return mock_response
+
+    monkeypatch.setattr(
+        "intervals_mcp_server.server.make_intervals_post_request", fake_post_request
+    )
+
+    result = asyncio.run(
+        create_workout(
+            name="Test Workout",
+            description="5m z1\n3x\n- 1m z5\n- 2m z1\n5m z1",
+            date="2024-01-15",
+            athlete_id="i123456",
+        )
+    )
+
+    assert (
+        "Successfully created workout 'Test Workout' on 2024-01-15 (Event ID: 12345)"
+        in result
+    )
+
+
+def test_create_workout_api_error(monkeypatch):
+    """
+    Test create_workout returns an error message when the API returns an error.
+    """
+    mock_error_response = {"error": True, "message": "Invalid date format"}
+
+    async def fake_post_request(*args, **kwargs):
+        return mock_error_response
+
+    monkeypatch.setattr(
+        "intervals_mcp_server.server.make_intervals_post_request", fake_post_request
+    )
+
+    result = asyncio.run(
+        create_workout(
+            name="Test Workout",
+            description="5m z1",
+            date="2024-01-15",
+            athlete_id="i123456",
+        )
+    )
+
+    assert "Error creating workout: Invalid date format" in result
+
+
+def test_create_workout_invalid_date():
+    """
+    Test create_workout returns an error for invalid date format.
+    """
+    result = asyncio.run(
+        create_workout(
+            name="Test Workout",
+            description="5m z1",
+            date="2024/01/15",  # Invalid format
+            athlete_id="i123456",
+        )
+    )
+
+    assert "Error: Date must be in YYYY-MM-DD format." in result
+
+
+def test_create_workout_invalid_category():
+    """
+    Test create_workout returns an error for invalid category.
+    """
+    result = asyncio.run(
+        create_workout(
+            name="Test Workout",
+            description="5m z1",
+            date="2024-01-15",
+            athlete_id="i123456",
+            category="INVALID_CATEGORY",
+        )
+    )
+
+    assert "Error: Invalid category." in result
+
+
+def test_create_workout_invalid_color():
+    """
+    Test create_workout returns an error for invalid color format.
+    """
+    result = asyncio.run(
+        create_workout(
+            name="Test Workout",
+            description="5m z1",
+            date="2024-01-15",
+            athlete_id="i123456",
+            color="red",  # Invalid hex format
+        )
+    )
+
+    assert "Error: Color must be a hex color code like #FF0000" in result
+
+
+def test_create_workout_no_athlete_id(monkeypatch):
+    """
+    Test create_workout returns an error when no athlete ID is provided.
+    """
+    # Mock the ATHLETE_ID to be empty
+    monkeypatch.setattr("intervals_mcp_server.server.ATHLETE_ID", "")
+
+    result = asyncio.run(
+        create_workout(name="Test Workout", description="5m z1", date="2024-01-15")
+    )
+
+    assert (
+        "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
+        in result
+    )
+
+
+def test_get_workout_format_examples():
+    """
+    Test get_workout_format_examples returns workout format examples from workout_samples.md
+    """
+    result = asyncio.run(get_workout_format_examples())
+
+    # Check that it contains key content from workout_samples.md
+    assert "Intervals.icu Workout Samples" in result
+    assert "Bike Workouts" in result
+    assert "Run Workouts" in result
+    assert "Swim Workouts" in result
+    assert "z1" in result  # Power/pace zones
+    assert "%" in result  # Percentage notation
+    assert "3x" in result  # Interval notation
