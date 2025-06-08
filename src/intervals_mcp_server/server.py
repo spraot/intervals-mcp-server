@@ -25,12 +25,24 @@ Usage:
         - get_activity_details
         - get_athlete
         - get_events
+        - list_events
         - get_event_by_id
         - get_wellness_data
         - get_activity_intervals
         - add_events
         - calculate_date_info
         - get_current_date_and_time_info
+        - get_races
+        - get_power_curves
+        - get_activity_power_curves
+        - get_pace_curves
+        - get_activity_pace_curve
+        - get_athlete
+        - get_power_hr_curve
+        - get_activity_power_vs_hr
+        - get_activity_hr_curve
+        - get_workout_format_examples
+        - create_workout
 
     See the README for more details on configuration and usage.
 """
@@ -101,7 +113,9 @@ async def lifespan(_app: FastMCP):
 mcp = FastMCP("intervals-icu", lifespan=lifespan)
 
 # Constants
-INTERVALS_API_BASE_URL = os.getenv("INTERVALS_API_BASE_URL", "https://intervals.icu/api/v1")
+INTERVALS_API_BASE_URL = os.getenv(
+    "INTERVALS_API_BASE_URL", "https://intervals.icu/api/v1"
+)
 API_KEY = os.getenv("API_KEY", "")  # Provide default empty string
 ATHLETE_ID = os.getenv("ATHLETE_ID", "")  # Default athlete ID from .env
 USER_AGENT = "intervalsicu-mcp-server/1.0"
@@ -235,7 +249,9 @@ def _parse_activities_from_result(result: Any) -> list[dict[str, Any]]:
                 activities = [item for item in value if isinstance(item, dict)]
                 break
         # If no list was found but the dict has typical activity fields, treat it as a single activity
-        if not activities and any(key in result for key in ["name", "startTime", "distance"]):
+        if not activities and any(
+            key in result for key in ["name", "startTime", "distance"]
+        ):
             activities = [result]
 
     return activities
@@ -288,9 +304,7 @@ def _format_activities_response(
     """Format the activities response based on the results."""
     if not activities:
         if include_unnamed:
-            return (
-                f"No valid activities found for athlete {athlete_id} in the specified date range."
-            )
+            return f"No valid activities found for athlete {athlete_id} in the specified date range."
         return f"No named activities found for athlete {athlete_id} in the specified date range. Try with include_unnamed=True to see all activities."
 
     # Format the output
@@ -384,7 +398,9 @@ async def get_activity_details(activity_id: str, api_key: str | None = None) -> 
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
     """
     # Call the Intervals.icu API
-    result = await make_intervals_request(url=f"/activity/{activity_id}", api_key=api_key)
+    result = await make_intervals_request(
+        url=f"/activity/{activity_id}", api_key=api_key
+    )
 
     if isinstance(result, dict) and "error" in result:
         error_message = result.get("message", "Unknown error")
@@ -407,11 +423,15 @@ async def get_activity_details(activity_id: str, api_key: str | None = None) -> 
         zones = activity_data["zones"]
         detailed_view += "\nPower Zones:\n"
         for zone in zones.get("power", []):
-            detailed_view += f"Zone {zone.get('number')}: {zone.get('secondsInZone')} seconds\n"
+            detailed_view += (
+                f"Zone {zone.get('number')}: {zone.get('secondsInZone')} seconds\n"
+            )
 
         detailed_view += "\nHeart Rate Zones:\n"
         for zone in zones.get("hr", []):
-            detailed_view += f"Zone {zone.get('number')}: {zone.get('secondsInZone')} seconds\n"
+            detailed_view += (
+                f"Zone {zone.get('number')}: {zone.get('secondsInZone')} seconds\n"
+            )
 
     return detailed_view
 
@@ -428,7 +448,9 @@ async def get_activity_intervals(activity_id: str, api_key: str | None = None) -
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
     """
     # Call the Intervals.icu API
-    result = await make_intervals_request(url=f"/activity/{activity_id}/intervals", api_key=api_key)
+    result = await make_intervals_request(
+        url=f"/activity/{activity_id}/intervals", api_key=api_key
+    )
 
     if isinstance(result, dict) and "error" in result:
         error_message = result.get("message", "Unknown error")
@@ -445,7 +467,9 @@ async def get_activity_intervals(activity_id: str, api_key: str | None = None) -
         return f"No interval data or unrecognized format for activity {activity_id}."
 
     # Get activity type from new API call
-    activity_result = await make_intervals_request(url=f"/activity/{activity_id}", api_key=api_key)
+    activity_result = await make_intervals_request(
+        url=f"/activity/{activity_id}", api_key=api_key
+    )
     activity_type = activity_result.get("type")
 
     # Format the intervals data
@@ -645,9 +669,7 @@ async def get_wellness_data(
 
     # Format the response
     if not result:
-        return (
-            f"No wellness data found for athlete {athlete_id_to_use} in the specified date range."
-        )
+        return f"No wellness data found for athlete {athlete_id_to_use} in the specified date range."
 
     wellness_summary = "Wellness Data:\n\n"
 
@@ -702,7 +724,9 @@ async def delete_event(
     if not event_id:
         return "Error: No event ID provided."
     result = await make_intervals_request(
-        url=f"/athlete/{athlete_id_to_use}/events/{event_id}", api_key=api_key, method="DELETE"
+        url=f"/athlete/{athlete_id_to_use}/events/{event_id}",
+        api_key=api_key,
+        method="DELETE",
     )
     if isinstance(result, dict) and "error" in result:
         return f"Error deleting event: {result.get('message')}"
@@ -737,15 +761,17 @@ async def delete_events_by_date_range(
     failed_events = []
     for event in events:
         result = await make_intervals_request(
-            url=f"/athlete/{athlete_id_to_use}/events/{event.get('id')}", api_key=api_key, method="DELETE"
+            url=f"/athlete/{athlete_id_to_use}/events/{event.get('id')}",
+            api_key=api_key,
+            method="DELETE",
         )
         if isinstance(result, dict) and "error" in result:
-            failed_events.append(event.get('id'))
+            failed_events.append(event.get("id"))
     return f"Deleted {len(events) - len(failed_events)} events. Failed to delete {len(failed_events)} events: {failed_events}"
 
 
 @mcp.tool()
-async def add_or_update_event( # pylint: disable=locally-disabled, too-many-arguments, too-many-positional-arguments
+async def add_or_update_event(  # pylint: disable=locally-disabled, too-many-arguments, too-many-positional-arguments
     workout_type: str,
     name: str,
     athlete_id: str | None = None,
@@ -838,7 +864,8 @@ async def add_or_update_event( # pylint: disable=locally-disabled, too-many-argu
                 "distance": distance,
             }
             result = await make_intervals_request(
-                url=f"/athlete/{athlete_id}/events" +("/"+event_id if event_id else ""),
+                url=f"/athlete/{athlete_id}/events"
+                + ("/" + event_id if event_id else ""),
                 api_key=api_key,
                 data=data,
                 method="PUT" if event_id else "POST",
@@ -989,7 +1016,9 @@ async def calculate_date_info(date: str) -> dict[str, Any]:
         # Parse the input date
         target_date = datetime.strptime(date, "%Y-%m-%d")
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        target_date_normalized = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        target_date_normalized = target_date.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
         # Calculate days difference
         days_diff = (target_date_normalized - today).days
@@ -1398,6 +1427,146 @@ async def get_activity_hr_curve(
         return f"Error fetching activity HR curve: {result.get('message')}"
 
     return result if isinstance(result, dict) else {}
+
+
+@mcp.tool()
+async def get_workout_format_examples() -> str:
+    """Get workout format examples for creating structured workout descriptions
+
+    This tool returns the contents of workout_samples.md which contains examples
+    of how to format workout descriptions in the native Intervals.icu format.
+    Use this to understand the proper syntax for power zones, pace zones,
+    percentages, intervals, and time/distance formats.
+
+    Returns:
+        String containing workout format examples and explanations
+    """
+    try:
+        import os
+
+        # Get the path to workout_samples.md relative to this file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(current_dir))
+        workout_samples_path = os.path.join(project_root, "workout_samples.md")
+
+        with open(workout_samples_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        return content
+    except FileNotFoundError:
+        return "Error: workout_samples.md file not found. Please ensure the file exists in the project root."
+    except Exception as e:
+        return f"Error reading workout_samples.md: {str(e)}"
+
+
+@mcp.tool()
+async def create_workout(
+    name: str,
+    description: str,
+    date: str,
+    athlete_id: str | None = None,
+    api_key: str | None = None,
+    category: str = "WORKOUT",
+    workout_type: str = "Ride",
+    indoor: bool | None = None,
+    moving_time: int | None = None,
+    color: str | None = None,
+) -> str:
+    """Create a workout event on an athlete's Intervals.icu calendar
+
+    This tool creates a workout event with a structured description using the native
+    Intervals.icu workout format.
+
+    Args:
+        name: The name/title of the workout
+        description: The workout description in Intervals.icu format
+        date: The date for the workout in YYYY-MM-DD format (local date)
+        athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
+        api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
+        category: The event category (default: "WORKOUT", options: WORKOUT, RACE_A, RACE_B, RACE_C, NOTE, HOLIDAY, SICK, INJURED, SET_EFTP, FITNESS_DAYS, SEASON_START, TARGET, SET_FITNESS)
+        workout_type: The activity type for the workout (default: "Ride", options: Ride, Run, Swim, OpenWaterSwim, etc.)
+        indoor: Whether the workout is intended to be done indoors (optional)
+        moving_time: Expected moving time in seconds (optional)
+        color: Hex color code for the event (optional, e.g., "#FF0000")
+
+    Returns:
+        Success message with the created event ID or error message
+    """
+    # Use provided athlete_id or fall back to global ATHLETE_ID
+    athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
+    if not athlete_id_to_use:
+        return "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
+
+    # Validate date format
+    try:
+        from datetime import datetime
+
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        return "Error: Date must be in YYYY-MM-DD format."
+
+    # Validate category
+    valid_categories = [
+        "WORKOUT",
+        "RACE_A",
+        "RACE_B",
+        "RACE_C",
+        "NOTE",
+        "HOLIDAY",
+        "SICK",
+        "INJURED",
+        "SET_EFTP",
+        "FITNESS_DAYS",
+        "SEASON_START",
+        "TARGET",
+        "SET_FITNESS",
+    ]
+    if category not in valid_categories:
+        return f"Error: Invalid category. Must be one of: {', '.join(valid_categories)}"
+
+    # Build the event data with proper date format
+    # Convert YYYY-MM-DD to YYYY-MM-DDTHH:MM:SS format
+    if len(date) == 10:  # YYYY-MM-DD format
+        formatted_date = f"{date}T00:00:00"
+    else:
+        formatted_date = date
+
+    event_data = {
+        "start_date_local": formatted_date,
+        "name": name,
+        "description": description,
+        "category": category,
+        "type": workout_type,
+    }
+
+    # Add optional fields if provided
+    if indoor is not None:
+        event_data["indoor"] = indoor
+    if moving_time is not None:
+        event_data["moving_time"] = moving_time
+    if color is not None:
+        if not color.startswith("#") or len(color) != 7:
+            return "Error: Color must be a hex color code like #FF0000"
+        event_data["color"] = color
+
+    # Call the Intervals.icu API
+    result = await make_intervals_request(
+        url=f"/athlete/{athlete_id_to_use}/events",
+        api_key=api_key,
+        method="POST",
+        data=event_data,
+    )
+
+    if isinstance(result, dict) and "error" in result:
+        error_message = result.get("message", "Unknown error")
+        return f"Error creating workout: {error_message}"
+
+    # Check if we got a valid response
+    if isinstance(result, dict) and "id" in result:
+        event_id = result["id"]
+        return f"Successfully created workout '{name}' on {date} (Event ID: {event_id})"
+    else:
+        return "Workout created but response format was unexpected."
 
 
 # Run the server
