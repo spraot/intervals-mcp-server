@@ -58,7 +58,6 @@ from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from json import JSONDecodeError
 from typing import Any
-import json
 
 import httpx  # pylint: disable=import-error
 from mcp.server.fastmcp import FastMCP  # pylint: disable=import-error
@@ -1410,8 +1409,6 @@ async def get_workout_format_examples() -> str:
         String containing workout format examples and explanations
     """
     try:
-        import os
-
         # Get the path to workout_samples.md relative to this file
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(os.path.dirname(current_dir))
