@@ -41,7 +41,7 @@ Usage:
         - get_power_hr_curve
         - get_activity_power_vs_hr
         - get_activity_hr_curve
-        - get_current_date_info
+        - get_current_date_and_time_info
         - get_workout_format_examples
         - create_workout
 
@@ -1267,39 +1267,6 @@ async def get_activity_pace_curve(
 
 
 @mcp.tool()
-async def get_athlete(
-    athlete_id: str | None = None,
-    api_key: str | None = None,
-) -> dict | str:
-    """Get detailed information for an athlete from Intervals.icu
-
-    Args:
-        athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
-        api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
-
-    Returns:
-        Dictionary containing comprehensive athlete data including sport settings and custom items
-    """
-    # Use provided athlete_id or fall back to global ATHLETE_ID
-    athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
-    if not athlete_id_to_use:
-        return "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
-
-    # Call the Intervals.icu API
-    result = await make_intervals_request(
-        url=f"/athlete/{athlete_id_to_use}",
-        api_key=api_key,
-        params={},
-    )
-
-    if isinstance(result, dict) and "error" in result:
-        error_message = result.get("message", "Unknown error")
-        return f"Error fetching athlete data: {error_message}"
-
-    return result if isinstance(result, dict) else {}
-
-
-@mcp.tool()
 async def get_power_hr_curve(
     athlete_id: str | None = None,
     api_key: str | None = None,
@@ -1428,45 +1395,6 @@ async def get_activity_hr_curve(
         return f"Error fetching activity HR curve: {result.get('message')}"
 
     return result if isinstance(result, dict) else {}
-
-
-@mcp.tool()
-async def get_current_date_info() -> dict[str, Any]:
-    """Get current date and time information
-
-    Returns comprehensive information about the current date including
-    day of week, week number, and relative day calculations.
-
-    Returns:
-        Dictionary containing current date information:
-        - current_date: ISO format date (YYYY-MM-DD)
-        - day_of_week: Full day name (e.g., "Sunday")
-        - week_number: ISO week number (1-53)
-        - days_until_weekend: Days until Saturday (0-6)
-        - is_weekend: Whether today is Saturday or Sunday
-        - year: Current year
-        - month: Current month (1-12)
-        - day: Current day of month (1-31)
-    """
-    from datetime import datetime
-
-    now = datetime.now()
-
-    # Calculate days until weekend (Saturday = 5, Sunday = 6 in weekday())
-    # weekday(): Monday=0, Tuesday=1, ..., Sunday=6
-    current_weekday = now.weekday()  # 0=Monday, 6=Sunday
-    days_until_saturday = (5 - current_weekday) % 7  # Saturday is weekday 5
-
-    return {
-        "current_date": now.strftime("%Y-%m-%d"),
-        "day_of_week": now.strftime("%A"),
-        "week_number": int(now.strftime("%W")),  # ISO week number
-        "days_until_weekend": days_until_saturday,
-        "is_weekend": current_weekday in [5, 6],  # Saturday=5, Sunday=6
-        "year": now.year,
-        "month": now.month,
-        "day": now.day,
-    }
 
 
 @mcp.tool()
