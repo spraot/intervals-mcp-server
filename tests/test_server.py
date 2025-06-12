@@ -182,4 +182,6 @@ def test_add_events(monkeypatch):
     result = asyncio.run(
         add_events(athlete_id="i1", start_date="2024-01-15", name="Test Workout", **sample_data)
     )
-    assert result == expected_response
+    assert "Successfully created event:" in result
+    assert '"id": "e123"' in result
+    assert '"name": "Test Workout"' in result

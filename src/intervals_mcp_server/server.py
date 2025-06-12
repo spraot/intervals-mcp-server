@@ -114,7 +114,7 @@ async def make_intervals_request(
     api_key: str | None = None,
     params: dict[str, Any] | None = None,
     method: str = "GET",
-    data=None,
+    data: dict[str, Any] | None = None,
 ) -> dict[str, Any] | list[dict[str, Any]]:
     """
     Make a request to the Intervals.icu API with proper error handling.
@@ -138,25 +138,34 @@ async def make_intervals_request(
     key_to_use = api_key if api_key is not None else API_KEY
     auth = httpx.BasicAuth("API_KEY", key_to_use)
     full_url = f"{INTERVALS_API_BASE_URL}{url}"
-    final_data = json.dumps(data)
 
     try:
-        response = await httpx_client.request(
-            method=method,
-            url=full_url,
-            headers=headers,
-            params=params,
-            auth=auth,
-            timeout=30.0,
-            data=final_data,
-        )
+        if method == "POST" and data is not None:
+            response = await httpx_client.request(
+                method=method,
+                url=full_url,
+                headers=headers,
+                params=params,
+                auth=auth,
+                timeout=30.0,
+                content=json.dumps(data),
+            )
+        else:
+            response = await httpx_client.request(
+                method=method,
+                url=full_url,
+                headers=headers,
+                params=params,
+                auth=auth,
+                timeout=30.0,
+            )
         try:
-            data = response.json() if response.content else {}
+            response_data = response.json() if response.content else {}
         except JSONDecodeError:
             logger.error("Invalid JSON in response from: %s", full_url)
             return {"error": True, "message": "Invalid JSON in response"}
         _ = response.raise_for_status()
-        return data
+        return response_data
     except httpx.HTTPStatusError as e:
         error_code = e.response.status_code
         error_text = e.response.text
@@ -572,31 +581,47 @@ async def get_wellness_data(
     return wellness_summary
 
 
-def convert_distance(distance):
+def convert_distance(distance: str) -> float:
+    """Convert distance string to meters.
+
+    Args:
+        distance: Distance string with unit (e.g., "10km", "500mtr")
+
+    Returns:
+        Distance in meters as float
+    """
     if "km" in distance:
         return float(distance.replace("km", "").strip()) * 1000  # Convert km to meters
-    elif "m" in distance:
-        return int(distance.replace("mtr", "").strip())  # Keep meters as is
+    if "m" in distance:
+        return float(distance.replace("mtr", "").strip())  # Keep meters as is
+    return 0.0  # Default for unknown formats
 
 
-def convert_duration(duration):
+def convert_duration(duration: str) -> int:
+    """Convert duration string to seconds.
+
+    Args:
+        duration: Duration string with unit (e.g., "1h", "15m", "90s")
+
+    Returns:
+        Duration in seconds as int
+    """
     if "h" in duration:
         return int(duration.replace("h", "").strip()) * 3600  # Convert hours to seconds
-    elif "m" in duration:
+    if "m" in duration:
         return int(duration.replace("m", "").strip()) * 60  # Convert minutes to seconds
-    elif "s" in duration:
+    if "s" in duration:
         return int(duration.replace("s", "").strip())  # Keep seconds as is
-    else:
-        return int(duration)  # Default for unknown formats
+    return int(duration)  # Default for unknown formats
 
 
 @mcp.tool()
-async def add_events(
+async def add_events(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements,too-many-positional-arguments
     athlete_id: str | None = None,
     api_key: str | None = None,
     start_date: str | None = None,
     name: str | None = None,
-    steps: list | None = None,
+    steps: list[dict[str, Any]] | None = None,
     workout_type: str | None = None,
     target_type: str | None = None,
     moving_time: str | None = None,
@@ -659,6 +684,9 @@ async def add_events(
     if not start_date:
         start_date = datetime.now().strftime("%Y-%m-%d")
 
+    if steps is None:
+        return "Error: No workout steps provided"
+
     description_lines = []
     for step in steps:
         if "duration" in step and "distance" in step:
@@ -714,17 +742,20 @@ async def add_events(
         else:
             target_type = "AUTO"
 
+    # Convert moving_time and distance to numeric values
+    moving_time_seconds: int | None = None
     if moving_time:
-        moving_time = convert_duration(moving_time)
+        moving_time_seconds = convert_duration(moving_time)
     else:
         if all("duration" in step for step in steps):
-            moving_time = sum(convert_duration(step["duration"]) for step in steps)
+            moving_time_seconds = sum(convert_duration(step["duration"]) for step in steps)
 
+    distance_meters: float | None = None
     if distance:
-        distance = convert_distance(distance)
+        distance_meters = convert_distance(distance)
     else:
         if all("distance" in step for step in steps):
-            distance = sum(convert_distance(step["distance"]) for step in steps)
+            distance_meters = sum(convert_distance(step["distance"]) for step in steps)
 
     final_data.update(
         {
@@ -734,8 +765,8 @@ async def add_events(
             "description": "\n".join(description_lines).strip(),
             "type": workout_type,
             "target": target_type,
-            "moving_time": moving_time,
-            "distance": distance,
+            "moving_time": moving_time_seconds,
+            "distance": distance_meters,
         }
     )
 
@@ -746,20 +777,17 @@ async def add_events(
 
     if isinstance(result, dict) and "error" in result:
         error_message = result.get("message", "Unknown error")
-        logging.error(f"Error fetching events: {error_message}. Data used: {final_data}")
-        return f"Error fetching events: {error_message}"
+        return f"Error posting events: {error_message}, data used: {final_data}"
 
     # Format the response
     if not result:
         return f"No events posted for athlete {athlete_id_to_use}."
 
-    # Ensure result is a dict
-    events = result if isinstance(result, dict) else []
+    # Return success message with event details
+    if isinstance(result, dict):
+        return f"Successfully created event: {json.dumps(result, indent=2)}"
 
-    if not events:
-        return f"format error, verify intervals for correct event at {start_date}"
-
-    return events
+    return f"Event created successfully at {start_date}"
 
 
 # Run the server
