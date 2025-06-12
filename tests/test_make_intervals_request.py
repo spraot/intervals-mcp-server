@@ -58,6 +58,10 @@ class MockAsyncClient:
         """Mock get method that returns MockBadJSONResponse."""
         return MockBadJSONResponse()
 
+    async def request(self, *args, **kwargs):
+        """Mock request method that returns MockBadJSONResponse."""
+        return MockBadJSONResponse()
+
 
 def test_make_intervals_request_bad_json(monkeypatch, caplog):
     """
