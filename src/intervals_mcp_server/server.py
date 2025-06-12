@@ -746,7 +746,8 @@ async def add_events(
 
     if isinstance(result, dict) and "error" in result:
         error_message = result.get("message", "Unknown error")
-        return f"Error fetching events: {error_message}, data used: {final_data}"
+        logging.error(f"Error fetching events: {error_message}. Data used: {final_data}")
+        return f"Error fetching events: {error_message}"
 
     # Format the response
     if not result:
