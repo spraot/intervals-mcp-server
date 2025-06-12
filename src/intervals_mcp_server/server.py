@@ -109,6 +109,24 @@ if not re.fullmatch(r"i?\d+", ATHLETE_ID):
     )
 
 
+def _get_error_message(error_code: int, error_text: str) -> str:
+    """Return a user-friendly error message for a given HTTP status code."""
+    error_messages = {
+        HTTPStatus.UNAUTHORIZED: f"{HTTPStatus.UNAUTHORIZED.value} {HTTPStatus.UNAUTHORIZED.phrase}: Please check your API key.",
+        HTTPStatus.FORBIDDEN: f"{HTTPStatus.FORBIDDEN.value} {HTTPStatus.FORBIDDEN.phrase}: You may not have permission to access this resource.",
+        HTTPStatus.NOT_FOUND: f"{HTTPStatus.NOT_FOUND.value} {HTTPStatus.NOT_FOUND.phrase}: The requested endpoint or ID doesn't exist.",
+        HTTPStatus.UNPROCESSABLE_ENTITY: f"{HTTPStatus.UNPROCESSABLE_ENTITY.value} {HTTPStatus.UNPROCESSABLE_ENTITY.phrase}: The server couldn't process the request (invalid parameters or unsupported operation).",
+        HTTPStatus.TOO_MANY_REQUESTS: f"{HTTPStatus.TOO_MANY_REQUESTS.value} {HTTPStatus.TOO_MANY_REQUESTS.phrase}: Too many requests in a short time period.",
+        HTTPStatus.INTERNAL_SERVER_ERROR: f"{HTTPStatus.INTERNAL_SERVER_ERROR.value} {HTTPStatus.INTERNAL_SERVER_ERROR.phrase}: The Intervals.icu server encountered an internal error.",
+        HTTPStatus.SERVICE_UNAVAILABLE: f"{HTTPStatus.SERVICE_UNAVAILABLE.value} {HTTPStatus.SERVICE_UNAVAILABLE.phrase}: The Intervals.icu server might be down or undergoing maintenance.",
+    }
+    try:
+        status = HTTPStatus(error_code)
+        return error_messages.get(status, error_text)
+    except ValueError:
+        return error_text
+
+
 async def make_intervals_request(
     url: str,
     api_key: str | None = None,
@@ -172,26 +190,11 @@ async def make_intervals_request(
 
         logger.error("HTTP error: %s - %s", error_code, error_text)
 
-        # Provide specific messages for common error codes
-        error_messages = {
-            HTTPStatus.UNAUTHORIZED: f"{HTTPStatus.UNAUTHORIZED.value} {HTTPStatus.UNAUTHORIZED.phrase}: Please check your API key.",
-            HTTPStatus.FORBIDDEN: f"{HTTPStatus.FORBIDDEN.value} {HTTPStatus.FORBIDDEN.phrase}: You may not have permission to access this resource.",
-            HTTPStatus.NOT_FOUND: f"{HTTPStatus.NOT_FOUND.value} {HTTPStatus.NOT_FOUND.phrase}: The requested endpoint or ID doesn't exist.",
-            HTTPStatus.UNPROCESSABLE_ENTITY: f"{HTTPStatus.UNPROCESSABLE_ENTITY.value} {HTTPStatus.UNPROCESSABLE_ENTITY.phrase}: The server couldn't process the request (invalid parameters or unsupported operation).",
-            HTTPStatus.TOO_MANY_REQUESTS: f"{HTTPStatus.TOO_MANY_REQUESTS.value} {HTTPStatus.TOO_MANY_REQUESTS.phrase}: Too many requests in a short time period.",
-            HTTPStatus.INTERNAL_SERVER_ERROR: f"{HTTPStatus.INTERNAL_SERVER_ERROR.value} {HTTPStatus.INTERNAL_SERVER_ERROR.phrase}: The Intervals.icu server encountered an internal error.",
-            HTTPStatus.SERVICE_UNAVAILABLE: f"{HTTPStatus.SERVICE_UNAVAILABLE.value} {HTTPStatus.SERVICE_UNAVAILABLE.phrase}: The Intervals.icu server might be down or undergoing maintenance.",
+        return {
+            "error": True,
+            "status_code": error_code,
+            "message": _get_error_message(error_code, error_text),
         }
-
-        # Get a specific message or default to the server's response
-        try:
-            status = HTTPStatus(error_code)
-            custom_message = error_messages.get(status, error_text)
-        except ValueError:
-            # If the status code doesn't map to HTTPStatus, use the error_text
-            custom_message = error_text
-
-        return {"error": True, "status_code": error_code, "message": custom_message}
     except httpx.RequestError as e:
         logger.error("Request error: %s", str(e))
         return {"error": True, "message": f"Request error: {str(e)}"}
@@ -645,16 +648,16 @@ def _resolve_workout_type(name: str | None, workout_type: str | None) -> str:
     if workout_type:
         return workout_type
     name_lower = name.lower() if name else ""
-    if any(keyword in name_lower for keyword in ["bike", "cycle", "cycling", "ride"]):
-        return "Ride"
-    if any(keyword in name_lower for keyword in ["run", "running", "jog", "jogging"]):
-        return "Run"
-    if any(keyword in name_lower for keyword in ["swim", "swimming", "pool"]):
-        return "Swim"
-    if any(keyword in name_lower for keyword in ["walk", "walking", "hike", "hiking"]):
-        return "Walk"
-    if any(keyword in name_lower for keyword in ["row", "rowing"]):
-        return "Row"
+    mapping = [
+        ("Ride", ["bike", "cycle", "cycling", "ride"]),
+        ("Run", ["run", "running", "jog", "jogging"]),
+        ("Swim", ["swim", "swimming", "pool"]),
+        ("Walk", ["walk", "walking", "hike", "hiking"]),
+        ("Row", ["row", "rowing"]),
+    ]
+    for workout, keywords in mapping:
+        if any(keyword in name_lower for keyword in keywords):
+            return workout
     return "Ride"  # Default
 
 
@@ -750,52 +753,49 @@ async def add_events(  # pylint: disable=too-many-arguments,too-many-locals,too-
         moving_time: Total expected moving time of the workout
         distance: Total expected distance of the workout
     """
+    message = None
     athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
     if not athlete_id_to_use:
-        return "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
-
-    if not start_date:
-        start_date = datetime.now().strftime("%Y-%m-%d")
-
-    if steps is None:
-        return "Error: No workout steps provided"
-
-    try:
-        description_lines = _format_steps_description(steps)
-    except ValueError as e:
-        return f"Error: {e}"
-
-    resolved_workout_type = _resolve_workout_type(name, workout_type)
-    resolved_target_type = _resolve_target_type(name, target_type)
-    moving_time_seconds = _calculate_moving_time(steps, moving_time)
-    distance_meters = _calculate_distance(steps, distance)
-
-    final_data = {
-        "start_date_local": start_date + "T00:00:00",
-        "category": "WORKOUT",
-        "name": name,
-        "description": "\n".join(description_lines).strip(),
-        "type": resolved_workout_type,
-        "target": resolved_target_type,
-        "moving_time": moving_time_seconds,
-        "distance": distance_meters,
-    }
-
-    result = await make_intervals_request(
-        url=f"/athlete/{athlete_id_to_use}/events", api_key=api_key, data=final_data, method="POST"
-    )
-
-    if isinstance(result, dict) and "error" in result:
-        error_message = result.get("message", "Unknown error")
-        return f"Error posting events: {error_message}, data used: {final_data}"
-
-    if not result:
-        return f"No events posted for athlete {athlete_id_to_use}."
-
-    if isinstance(result, dict):
-        return f"Successfully created event: {json.dumps(result, indent=2)}"
-
-    return f"Event created successfully at {start_date}"
+        message = "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
+    elif steps is None:
+        message = "Error: No workout steps provided"
+    else:
+        if not start_date:
+            start_date = datetime.now().strftime("%Y-%m-%d")
+        try:
+            description_lines = _format_steps_description(steps)
+            resolved_workout_type = _resolve_workout_type(name, workout_type)
+            resolved_target_type = _resolve_target_type(name, target_type)
+            moving_time_seconds = _calculate_moving_time(steps, moving_time)
+            distance_meters = _calculate_distance(steps, distance)
+            final_data = {
+                "start_date_local": start_date + "T00:00:00",
+                "category": "WORKOUT",
+                "name": name,
+                "description": "\n".join(description_lines).strip(),
+                "type": resolved_workout_type,
+                "target": resolved_target_type,
+                "moving_time": moving_time_seconds,
+                "distance": distance_meters,
+            }
+            result = await make_intervals_request(
+                url=f"/athlete/{athlete_id_to_use}/events",
+                api_key=api_key,
+                data=final_data,
+                method="POST",
+            )
+            if isinstance(result, dict) and "error" in result:
+                error_message = result.get("message", "Unknown error")
+                message = f"Error posting events: {error_message}, data used: {final_data}"
+            elif not result:
+                message = f"No events posted for athlete {athlete_id_to_use}."
+            elif isinstance(result, dict):
+                message = f"Successfully created event: {json.dumps(result, indent=2)}"
+            else:
+                message = f"Event created successfully at {start_date}"
+        except ValueError as e:
+            message = f"Error: {e}"
+    return message
 
 
 # Run the server
