@@ -110,7 +110,11 @@ if not re.fullmatch(r"i?\d+", ATHLETE_ID):
 
 
 async def make_intervals_request(
-    url: str, api_key: str | None = None, params: dict[str, Any] | None = None, method: str = "GET", data = None
+    url: str,
+    api_key: str | None = None,
+    params: dict[str, Any] | None = None,
+    method: str = "GET",
+    data=None,
 ) -> dict[str, Any] | list[dict[str, Any]]:
     """
     Make a request to the Intervals.icu API with proper error handling.
@@ -134,7 +138,7 @@ async def make_intervals_request(
     key_to_use = api_key if api_key is not None else API_KEY
     auth = httpx.BasicAuth("API_KEY", key_to_use)
     full_url = f"{INTERVALS_API_BASE_URL}{url}"
-    final_data=json.dumps(data)
+    final_data = json.dumps(data)
 
     try:
         response = await httpx_client.request(
@@ -144,7 +148,7 @@ async def make_intervals_request(
             params=params,
             auth=auth,
             timeout=30.0,
-            data=final_data
+            data=final_data,
         )
         try:
             data = response.json() if response.content else {}
@@ -185,6 +189,7 @@ async def make_intervals_request(
     except httpx.HTTPError as e:
         logger.error("HTTP client error: %s", str(e))
         return {"error": True, "message": f"HTTP client error: {str(e)}"}
+
 
 # ----- MCP Tool Implementations ----- #
 
@@ -381,6 +386,7 @@ async def get_activity_details(activity_id: str, api_key: str | None = None) -> 
 
     return detailed_view
 
+
 @mcp.tool()
 async def get_activity_intervals(activity_id: str, api_key: str | None = None) -> str:
     """Get interval data for a specific activity from Intervals.icu
@@ -393,9 +399,7 @@ async def get_activity_intervals(activity_id: str, api_key: str | None = None) -
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
     """
     # Call the Intervals.icu API
-    result = await make_intervals_request(
-        url=f"/activity/{activity_id}/intervals", api_key=api_key
-    )
+    result = await make_intervals_request(url=f"/activity/{activity_id}/intervals", api_key=api_key)
 
     if isinstance(result, dict) and "error" in result:
         error_message = result.get("message", "Unknown error")
@@ -567,11 +571,13 @@ async def get_wellness_data(
 
     return wellness_summary
 
+
 def convert_distance(distance):
     if "km" in distance:
         return float(distance.replace("km", "").strip()) * 1000  # Convert km to meters
     elif "m" in distance:
         return int(distance.replace("mtr", "").strip())  # Keep meters as is
+
 
 def convert_duration(duration):
     if "h" in duration:
@@ -582,6 +588,7 @@ def convert_duration(duration):
         return int(duration.replace("s", "").strip())  # Keep seconds as is
     else:
         return int(duration)  # Default for unknown formats
+
 
 @mcp.tool()
 async def add_events(
@@ -594,9 +601,8 @@ async def add_events(
     target_type: str | None = None,
     moving_time: str | None = None,
     distance: str | None = None,
-
 ) -> str:
-    """Post events for an athlete to Intervals.icu this follows the event api from intervals.icu as listed 
+    """Post events for an athlete to Intervals.icu this follows the event api from intervals.icu as listed
     in https://intervals.icu/api-docs.html#post-/api/v1/athlete/-id-/events
 
     Example:
@@ -615,14 +621,14 @@ async def add_events(
                 {"duration": "10m", "target": "80%", "description": "Cool-down"}
             ]
         }
-    
+
     Common workout types:
         - "Run" for running workouts
-        - "Ride" for cycling workouts  
+        - "Ride" for cycling workouts
         - "Swim" for swimming workouts
         - "Walk" for walking/hiking
         - "Row" for rowing
-    
+
     Target options:
         - "POWER" for power-based workouts (cycling)
         - "PACE" for pace-based workouts (running)
@@ -674,7 +680,7 @@ async def add_events(
             description_lines[-1] += f" ({step['cadence']})"
 
     final_data = {}
-    
+
     # Determine workout type
     if not workout_type:
         # Fall back to keyword detection in name
@@ -720,7 +726,8 @@ async def add_events(
         if all("distance" in step for step in steps):
             distance = sum(convert_distance(step["distance"]) for step in steps)
 
-    final_data.update({
+    final_data.update(
+        {
             "start_date_local": start_date + "T00:00:00",
             "category": "WORKOUT",
             "name": name,
@@ -729,8 +736,9 @@ async def add_events(
             "target": target_type,
             "moving_time": moving_time,
             "distance": distance,
-        })
-    
+        }
+    )
+
     # Call the Intervals.icu API
     result = await make_intervals_request(
         url=f"/athlete/{athlete_id_to_use}/events", api_key=api_key, data=final_data, method="POST"
@@ -744,7 +752,6 @@ async def add_events(
     if not result:
         return f"No events posted for athlete {athlete_id_to_use}."
 
-
     # Ensure result is a dict
     events = result if isinstance(result, dict) else []
 
@@ -752,6 +759,8 @@ async def add_events(
         return f"format error, verify intervals for correct event at {start_date}"
 
     return events
+
+
 # Run the server
 if __name__ == "__main__":
     mcp.run()
