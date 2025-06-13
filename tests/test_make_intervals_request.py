@@ -44,7 +44,7 @@ class MockAsyncClient:
     Always returns a MockBadJSONResponse from get().
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *_args, **_kwargs):
         # Accept any arguments to match httpx.AsyncClient's interface
         pass
 
@@ -56,6 +56,10 @@ class MockAsyncClient:
 
     async def get(self, _url, **_kwargs):
         """Mock get method that returns MockBadJSONResponse."""
+        return MockBadJSONResponse()
+
+    async def request(self, *_args, **_kwargs):
+        """Mock request method that returns MockBadJSONResponse."""
         return MockBadJSONResponse()
 
 
