@@ -589,9 +589,8 @@ async def add_events(
     api_key: str | None = None,
     start_date: str | None = None,
     name: str | None = None,
-    steps: list | None = None,
+    description: str | None = None,
     workout_type: str | None = None,
-    target_type: str | None = None,
     moving_time: str | None = None,
     distance: str | None = None,
 
@@ -601,20 +600,13 @@ async def add_events(
 
     Example:
     {
-            "start_date": "2025-01-14",
-            "name": "Run - VO2 Max Intervals",
-            "workout_type": "Run",  # Workout type (Ride, Run, Swim, etc.)
-            "target_type": "POWER",  # Target (POWER, PACE, HR, AUTO)
-            "moving_time": "1h",  # Total time of the workout
-            "distance": "10km",  # Total distance of the workout
-            "steps": [
-                {"duration": "15m", "target": "80%",  "description": "Warm-up"},
-                {"distance": "500m", "target": "110%",  "description": "High-intensity interval"},
-                {"duration": "90s", "target": "80%",  "description": "Recovery"},
-                {"distance": "500m", "target": "110%",  "description": "High-intensity interval"},
-                {"duration": "10m", "target": "80%", "description": "Cool-down"}
-            ]
-        }
+        "start_date": "2025-01-14",
+        "name": "Run - VO2 Max Intervals",
+        "workout_type": "Run",  # Workout type (Ride, Run, Swim, etc.)
+        "moving_time": "1h",  # Total time of the workout
+        "distance": "10km",  # Total distance of the workout
+        "description": "- 15m 80% Warm-up\n- 500m 110% High-intensity interval\n- 90s 80% Recovery\n- 500m 110% High-intensity interval\n- 10m 80% Cool-down"
+    }
     
     Common workout types:
         - "Run" for running workouts
@@ -623,24 +615,64 @@ async def add_events(
         - "Walk" for walking/hiking
         - "Row" for rowing
     
-    Target options:
-        - "POWER" for power-based workouts (cycling)
-        - "PACE" for pace-based workouts (running)
-        - "HR" for heart rate-based workouts
-        - "AUTO" for automatic detection
+    Description:
+        Description of the workout including steps and target (see details on formatting at https://forum.intervals.icu/t/workout-builder/1163/12)
+        Each step is on a line starting with a dash (-) and then the duration/distance, intensity, and description. Sections of steps can be repeated 
+        by preceding them with a line starting with "Nx" and an optional description, where N is the number of times to repeat the section.
+        Other lines can be used to add additional information such as a description of the workout or a note.
+
+        Distance: Specify distance using mtr for meters or km for kilometers. For example:
+            100mtr
+            1km
+            10km
+        Duration: Specify time using s for seconds, m for minutes, and h for hours or a combination of those. For example:
+            30s
+            5m
+            1h30m10s
+        Intensity: Define intensity as:
+            Percentage of FTP: 80%
+            Absolute power: 200w
+            Heart rate: 75% HR or 85% LTHR
+            Cadence: 90 rpm
+            Pace: 6:00/km
+            Zone by power: Z2
+            Zone by heart rate: Z2 HR
+        Ranges: Specify ranges for power, heart rate, or cadence:
+            80-90%
+            Z2
+            100-140w
+            70-80% HR
+            85-95 rpm
+            6:00/km - 6:30/km
+        Ramps: Indicate a gradual change in intensity (useful for ERG workouts):
+            Ramp 60-80%
+            Ramp 100-200w
+        Repeats: Use Nx (on a separate line!) to repeat a set of steps (all steps immediately following this line), where N is the number of times to repeat the section:
+            3x
+        Free Ride: Include free to indicate a segment without ERG control, optionally with a suggested power range:
+            10m free @ 0.85-0.95
+        Comments and Labels: Add descriptive text before the duration to label steps:
+            Warmup - 10m @ 60%
+        Advanced Options:
+            Specify intensity type: intensity=active, intensity=recovery, etc.
+            Set power target averaging: power: 1s
+
+    Example of description for interval training:
+        - 15m 80% Warm-up
+
+        4x repeats of the following:
+        - 200mtr 110% High-intensity interval
+        - 60s 80% Recovery
+
+        - 8m 80% Cool-down
 
     Args:
         athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
         start_date: Start date in YYYY-MM-DD format (optional, defaults to today)
         name: Name of the activity
-        steps: List of workout steps (each one should have one of duration or distance)
-            - duration: Duration of the step (90s, 15m, 1h, etc.)
-            - distance: Distance of the step (100mtr, 1km, 10km, etc.)
-            - target: Target for the step (given in %, W, pace, etc. as matching the target_type given)
-            - description: Description of the step
+        description: Description of the activity including steps (IMPORTANT: see details on formatting above, workout steps must follow that format)
         workout_type: Workout type (Run, Ride, Swim, etc.)
-        target_type: Target metric (POWER, PACE, HR, AUTO)
         moving_time: Total expected moving time of the workout
         distance: Total expected distance of the workout
     """
@@ -652,26 +684,6 @@ async def add_events(
     # Parse date parameters
     if not start_date:
         start_date = datetime.now().strftime("%Y-%m-%d")
-
-    description_lines = []
-    for step in steps:
-        if "duration" in step and "distance" in step:
-            raise ValueError("Step must have either duration or distance, not both")
-        if "duration" not in step and "distance" not in step:
-            raise ValueError("Step must have either duration or distance")
-        if "target" not in step:
-            raise ValueError("Step must have target")
-
-        description_lines.append("- ")
-        if "duration" in step:
-            description_lines[-1] += f"{step['duration']}"
-        if "distance" in step:
-            description_lines[-1] += f"{step['distance']}"
-        description_lines[-1] += f" {step['target']}"
-        if "description" in step:
-            description_lines[-1] += f" ({step['description']})"
-        if "cadence" in step:
-            description_lines[-1] += f" ({step['cadence']})"
 
     final_data = {}
     
@@ -695,19 +707,6 @@ async def add_events(
             # To avoid this, always specify "type" in the data dict when creating workouts
             workout_type = "Ride"
 
-    # Determine target type
-    if target_type not in ["POWER", "PACE", "HR", "AUTO"]:
-        # Fall back to keyword detection in name
-        name_lower = name.lower() if name else ""
-        if any(keyword in name_lower for keyword in ["power"]):
-            target_type = "POWER"
-        elif any(keyword in name_lower for keyword in ["pace"]):
-            target_type = "PACE"
-        elif any(keyword in name_lower for keyword in ["hr"]):
-            target_type = "HR"
-        else:
-            target_type = "AUTO"
-
     if moving_time:
         moving_time = convert_duration(moving_time)
     else:
@@ -724,9 +723,8 @@ async def add_events(
             "start_date_local": start_date + "T00:00:00",
             "category": "WORKOUT",
             "name": name,
-            "description": "\n".join(description_lines).strip(),
+            "description": description,
             "type": workout_type,
-            "target": target_type,
             "moving_time": moving_time,
             "distance": distance,
         })
