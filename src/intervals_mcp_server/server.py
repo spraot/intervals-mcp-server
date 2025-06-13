@@ -610,8 +610,8 @@ async def add_events(  # pylint: disable=too-many-arguments,too-many-locals,too-
     name: str | None = None,
     description: str | None = None,
     workout_type: str | None = None,
-    moving_time: str | None = None,
-    distance: str | None = None,
+    moving_time: int | None = None,
+    distance: int | None = None,
 ) -> str:
     """Post events for an athlete to Intervals.icu this follows the event api from intervals.icu as listed
     in https://intervals.icu/api-docs.html#post-/api/v1/athlete/-id-/events
@@ -638,6 +638,7 @@ async def add_events(  # pylint: disable=too-many-arguments,too-many-locals,too-
         Each step is on a line starting with a dash (-) and then the duration/distance, intensity, and description. Sections of steps can be repeated 
         by preceding them with a line starting with "Nx" and an optional description, where N is the number of times to repeat the section.
         Other lines can be used to add additional information such as a description of the workout or a note.
+        Important: m = minutes, mtr = meters
 
         Distance: Specify distance using mtr for meters or km for kilometers. For example:
             100mtr
@@ -709,8 +710,8 @@ async def add_events(  # pylint: disable=too-many-arguments,too-many-locals,too-
                 "name": name,
                 "description": description,
                 "type": resolved_workout_type,
-                "moving_time": moving_time_seconds,
-                "distance": distance_meters,
+                "moving_time": moving_time,
+                "distance": distance,
             }
             result = await make_intervals_request(
                 url=f"/athlete/{athlete_id_to_use}/events",
