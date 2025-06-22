@@ -676,14 +676,19 @@ async def add_events(  # pylint: disable=too-many-arguments,too-many-locals,too-
             Specify intensity type: intensity=active, intensity=recovery, etc.
             Set power target averaging: power: 1s
 
-    Example of description for interval training:
+    Example of description for interval training: "
         - 15m 80% Warm-up
 
-        4x repeats of the following:
+        4x repeats of the following:  <--- This line is important!
         - 200mtr 110% High-intensity interval
         - 60s 80% Recovery
 
-        - 8m 80% Cool-down
+        - 8m 80% Cool-down"
+
+    Important regarding repeated sections:
+        - There MUST be a blank line before and after repeated sections
+        - The first line of the repeated section is not a step and must start with "Nx" where N is the number of times to repeat the section
+        - The remaining lines of the repeated section must be the steps to repeat, one step per line
 
     Args:
         athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
