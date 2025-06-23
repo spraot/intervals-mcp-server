@@ -54,6 +54,8 @@ from intervals_mcp_server.utils.formatting import (
     format_wellness_entry,
 )
 
+from intervals_mcp_server.utils.types import WorkoutDoc
+
 # Try to load environment variables from .env file if it exists
 try:
     from dotenv import load_dotenv
@@ -107,6 +109,14 @@ if not re.fullmatch(r"i?\d+", ATHLETE_ID):
     raise ValueError(
         "ATHLETE_ID must be all digits (e.g. 123456) or start with 'i' followed by digits (e.g. i123456)"
     )
+
+
+def validate_date(date_str: str) -> str:
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+        return date_str
+    except ValueError:
+        return "Invalid date format. Please use YYYY-MM-DD."
 
 
 def _get_error_message(error_code: int, error_text: str) -> str:
@@ -603,102 +613,139 @@ def _resolve_workout_type(name: str | None, workout_type: str | None) -> str:
 
 
 @mcp.tool()
-async def add_events(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements,too-many-positional-arguments
+async def delete_event(
+    event_id: str,
     athlete_id: str | None = None,
     api_key: str | None = None,
-    start_date: str | None = None,
-    name: str | None = None,
-    description: str | None = None,
-    workout_type: str | None = None,
-    moving_time: int | None = None,
-    distance: int | None = None,
 ) -> str:
-    """Post events for an athlete to Intervals.icu this follows the event api from intervals.icu as listed
-    in https://intervals.icu/api-docs.html#post-/api/v1/athlete/-id-/events
+    """Delete event for an athlete from Intervals.icu
+    Args:
+        athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
+        api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
+        event_id: The Intervals.icu event ID
+    """
+    athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
+    if not athlete_id_to_use:
+        return "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
+    if not event_id:
+        return "Error: No event ID provided."
+    result = await make_intervals_request(
+        url=f"/athlete/{athlete_id_to_use}/events/{event_id}", api_key=api_key, method="DELETE"
+    )
+    if isinstance(result, dict) and "error" in result:
+        return f"Error deleting event: {result.get('message')}"
+    return json.dumps(result, indent=2)
 
-    Example:
-    {
-        "start_date": "2025-01-14",
-        "name": "Run - VO2 Max Intervals",
-        "workout_type": "Run",  # Workout type (Ride, Run, Swim, etc.)
-        "moving_time": "1800",  # Total expected duration of the workout in seconds
-        "distance": "5000",  # Total expected distance of the workout in meters
-        "description": "- 15m 80% Warm-up\n- 500m 110% High-intensity interval\n- 90s 80% Recovery\n- 500m 110% High-intensity interval\n- 10m 80% Cool-down"  # Important! See formatting details below
-    }
-    
-    Common workout types:
-        - "Run" for running workouts
-        - "Ride" for cycling workouts
-        - "Swim" for swimming workouts
-        - "Walk" for walking/hiking
-        - "Row" for rowing
-    
-    Description:
-        Description of the workout including steps and target (see details on formatting at https://forum.intervals.icu/t/workout-builder/1163/12)
-        Each step is on a line starting with a dash (-) and then the duration/distance, intensity, and description. Sections of steps can be repeated 
-        by preceding them with a line starting with "Nx" and an optional description, where N is the number of times to repeat the section.
-        Other lines can be used to add additional information such as a description of the workout or a note.
-        Important: m = minutes, mtr = meters
 
-        Distance: Specify distance using mtr for meters or km for kilometers. For example:
-            100mtr
-            1km
-            10km
-        Duration: Specify time using s for seconds, m for minutes, and h for hours or a combination of those. For example:
-            30s
-            5m
-            1h30m10s
-        Intensity: Define intensity as:
-            Percentage of FTP: 80%
-            Absolute power: 200w
-            Heart rate: 75% HR or 85% LTHR
-            Cadence: 90 rpm
-            Pace: 6:00/km
-            Zone by power: Z2
-            Zone by heart rate: Z2 HR
-        Ranges: Specify ranges for power, heart rate, or cadence:
-            80-90%
-            Z2
-            100-140w
-            70-80% HR
-            85-95 rpm
-            6:00/km - 6:30/km
-        Ramps: Indicate a gradual change in intensity (useful for ERG workouts):
-            Ramp 60-80%
-            Ramp 100-200w
-        Repeats: Use Nx (on a separate line!) to repeat a set of steps (all steps immediately following this line), where N is the number of times to repeat the section:
-            3x
-        Free Ride: Include free to indicate a segment without ERG control, optionally with a suggested power range:
-            10m free @ 0.85-0.95
-        Comments and Labels: Add descriptive text before the duration to label steps:
-            Warmup - 10m @ 60%
-        Advanced Options:
-            Specify intensity type: intensity=active, intensity=recovery, etc.
-            Set power target averaging: power: 1s
-
-    Example of description for interval training: "
-        - 15m 80% Warm-up
-
-        4x repeats of the following:  <--- This line is important!
-        - 200mtr 110% High-intensity interval
-        - 60s 80% Recovery
-
-        - 8m 80% Cool-down"
-
-    Important regarding repeated sections:
-        - There MUST be a blank line before and after repeated sections
-        - The first line of the repeated section is not a step and must start with "Nx" where N is the number of times to repeat the section
-        - The remaining lines of the repeated section must be the steps to repeat, one step per line
+@mcp.tool()
+async def delete_events_by_date_range(
+    start_date: str,
+    end_date: str,
+    athlete_id: str | None = None,
+    api_key: str | None = None,
+) -> str:
+    """Delete events for an athlete from Intervals.icu in the specified date range.
 
     Args:
         athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+    """
+    athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
+    if not athlete_id_to_use:
+        return "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
+    params = {"oldest": validate_date(start_date), "newest": validate_date(end_date)}
+    result = await make_intervals_request(
+        url=f"/athlete/{athlete_id_to_use}/events", api_key=api_key, params=params
+    )
+    if isinstance(result, dict) and "error" in result:
+        return f"Error deleting events: {result.get('message')}"
+    events = result if isinstance(result, list) else []
+    failed_events = []
+    for event in events:
+        result = await make_intervals_request(
+            url=f"/athlete/{athlete_id_to_use}/events/{event.get('id')}", api_key=api_key, method="DELETE"
+        )
+        if isinstance(result, dict) and "error" in result:
+            failed_events.append(event.get('id'))
+    return f"Deleted {len(events) - len(failed_events)} events. Failed to delete {len(failed_events)} events: {failed_events}" 
+
+
+@mcp.tool()
+async def add_or_update_event(
+    workout_type: str,
+    name: str,
+    athlete_id: str | None = None,
+    api_key: str | None = None,
+    event_id: str | None = None,
+    start_date: str | None = None,
+    workout_doc: WorkoutDoc | None = None,
+    moving_time: int | None = None,
+    distance: int | None = None,
+) -> str:
+    """Post event for an athlete to Intervals.icu this follows the event api from intervals.icu
+    If event_id is provided, the event will be updated instead of created.
+
+    Args:
+        athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
+        api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
+        event_id: The Intervals.icu event ID (optional, will use event_id from .env if not provided)
         start_date: Start date in YYYY-MM-DD format (optional, defaults to today)
         name: Name of the activity
-        description: Description of the activity including steps (IMPORTANT: see details on formatting above, workout steps must follow that format)
-        workout_type: Workout type (Run, Ride, Swim, etc.)
-        moving_time: Total expected moving time of the workout
-        distance: Total expected distance of the workout
+        workout_doc: steps as a list of Step objects (optional, but necessary to define workout steps)
+        workout_type: Workout type (e.g. Ride, Run, Swim, Walk, Row)
+        moving_time: Total expected moving time of the workout in seconds (optional)
+        distance: Total expected distance of the workout in meters (optional)
+    
+    Example:
+        "workout_doc": {
+            "description": "High-intensity workout for increasing VO2 max",
+            "steps": [
+                {"power": {"value": "80", "units": "%ftp"}, "duration": "900", "warmup": true},
+                {"reps": 2, "text": "High-intensity intervals", "steps": [
+                    {"power": {"value": "110", "units": "%ftp"}, "distance": "500", "text": "High-intensity"},
+                    {"power": {"value": "80", "units": "%ftp"}, "duration": "90", "text": "Recovery"}
+                ]},
+                {"power": {"value": "80", "units": "%ftp"}, "duration": "600", "cooldown": true}
+                {"text": ""}, # Add comments or blank lines for readability
+            ]
+        }
+    
+    Step properties:
+        distance: Distance of step in meters
+            {"distance": "5000"}
+        duration: Duration of step in seconds
+            {"duration": "1800"}
+        power/hr/pace/cadence: Define step intensity
+            Percentage of FTP: {"power": {"value": "80", "units": "%ftp"}}
+            Absolute power: {"power": {"value": "200", "units": "w"}}
+            Heart rate: {"hr": {"value": "75", "units": "%hr"}}
+            Heart rate (LTHR): {"hr": {"value": "85", "units": "%lthr"}}
+            Cadence: {"cadence": {"value": "90", "units": "rpm"}}
+            Pace by ftp: {"pace": {"value": "80", "units": "%pace"}}
+            Pace by zone: {"pace": {"value": "Z2", "units": "pace_zone"}}
+            Zone by power: {"power": {"value": "Z2", "units": "power_zone"}}
+            Zone by heart rate: {"hr": {"value": "Z2", "units": "hr_zone"}}
+        Ranges: Specify ranges for power, heart rate, or cadence:
+            {"power": {"start": "80", "end": "90", "units": "%ftp"}}
+        Ramps: Instead of a range, indicate a gradual change in intensity (useful for ERG workouts):
+            {"ramp": True, "power": {"start": "80", "end": "90", "units": "%ftp"}}
+        Repeats: include the reps property and add nested steps
+            {"reps": 3,
+            "steps": [
+                {"power": {"value": "110", "units": "%ftp"}, "distance": "500", "text": "High-intensity"},
+                {"power": {"value": "80", "units": "%ftp"}, "duration": "90", "text": "Recovery"}
+            ]}
+        Free Ride: Include free to indicate a segment without ERG control, optionally with a suggested power range:
+            {"free": true, "power": {"value": "80", "units": "%ftp"}}
+        Comments and Labels: Add descriptive text to label steps:
+            {"text": "Warmup"}
+
+    How to use steps:
+        - Set distance or duration as appropriate for step
+        - Use "reps" with nested steps to define repeat intervals (as in example above)
+        - Define one of "power", "hr" or "pace" to define step intensity
     """
     message = None
     athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
@@ -713,13 +760,13 @@ async def add_events(  # pylint: disable=too-many-arguments,too-many-locals,too-
                 "start_date_local": start_date + "T00:00:00",
                 "category": "WORKOUT",
                 "name": name,
-                "description": description,
+                "description": str(workout_doc) if workout_doc else None,
                 "type": resolved_workout_type,
                 "moving_time": moving_time,
                 "distance": distance,
             }
             result = await make_intervals_request(
-                url=f"/athlete/{athlete_id_to_use}/events",
+                url=f"/athlete/{athlete_id_to_use}/events" +("/"+event_id if event_id else ""),
                 api_key=api_key,
                 data=final_data,
                 method="POST",
