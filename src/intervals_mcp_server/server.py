@@ -769,7 +769,7 @@ async def add_or_update_event(
                 url=f"/athlete/{athlete_id_to_use}/events" +("/"+event_id if event_id else ""),
                 api_key=api_key,
                 data=final_data,
-                method="POST",
+                method="PUT" if event_id else "POST",
             )
             if isinstance(result, dict) and "error" in result:
                 error_message = result.get("message", "Unknown error")
