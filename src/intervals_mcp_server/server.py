@@ -159,7 +159,7 @@ async def make_intervals_request(
     """
     headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
 
-    if method == "POST":
+    if method in ["POST", "PUT"]:
         headers["Content-Type"] = "application/json"
 
     # Use provided api_key or fall back to global API_KEY
@@ -756,7 +756,7 @@ async def add_or_update_event(
             start_date = datetime.now().strftime("%Y-%m-%d")
         try:
             resolved_workout_type = _resolve_workout_type(name, workout_type)
-            final_data = {
+            data = {
                 "start_date_local": start_date + "T00:00:00",
                 "category": "WORKOUT",
                 "name": name,
@@ -768,18 +768,19 @@ async def add_or_update_event(
             result = await make_intervals_request(
                 url=f"/athlete/{athlete_id_to_use}/events" +("/"+event_id if event_id else ""),
                 api_key=api_key,
-                data=final_data,
+                data=data,
                 method="PUT" if event_id else "POST",
             )
+            action = "updated" if event_id else "created"
             if isinstance(result, dict) and "error" in result:
                 error_message = result.get("message", "Unknown error")
-                message = f"Error posting events: {error_message}, data used: {final_data}"
+                message = f"Error {action} event: {error_message}, data used: {data}"
             elif not result:
-                message = f"No events posted for athlete {athlete_id_to_use}."
+                message = f"No events {action} for athlete {athlete_id_to_use}."
             elif isinstance(result, dict):
-                message = f"Successfully created event: {json.dumps(result, indent=2)}"
+                message = f"Successfully {action} event: {json.dumps(result, indent=2)}"
             else:
-                message = f"Event created successfully at {start_date}"
+                message = f"Event {action} successfully at {start_date}"
         except ValueError as e:
             message = f"Error: {e}"
     return message
