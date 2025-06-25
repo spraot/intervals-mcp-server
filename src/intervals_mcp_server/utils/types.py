@@ -302,15 +302,16 @@ class Step:
         """Format duration into a human-readable string."""
         if self.duration is None:
             return ""
+        remaining_duration = self.duration
         val = ""
-        if self.duration > 3600:
-            val += f"{self.duration // 3600}h"
-            self.duration %= 3600
-        if self.duration > 100 or self.duration == 60:
-            val += f"{self.duration // 60}m"
-            self.duration %= 60
-        if self.duration > 0:
-            val += f"{self.duration}s"
+        if remaining_duration > 3600:
+            val += f"{remaining_duration // 3600}h"
+            remaining_duration %= 3600
+        if remaining_duration > 100 or remaining_duration == 60:
+            val += f"{remaining_duration // 60}m"
+            remaining_duration %= 60
+        if remaining_duration > 0:
+            val += f"{remaining_duration}s"
         return val
 
     def _format_distance(self) -> str:

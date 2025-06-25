@@ -116,7 +116,7 @@ def validate_date(date_str: str) -> str:
         datetime.strptime(date_str, "%Y-%m-%d")
         return date_str
     except ValueError:
-        return "Invalid date format. Please use YYYY-MM-DD."
+        raise ValueError("Invalid date format. Please use YYYY-MM-DD.")
 
 
 def _get_error_message(error_code: int, error_text: str) -> str:
