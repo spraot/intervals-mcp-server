@@ -362,7 +362,7 @@ class Step:
         if self.text is not None:
             val += f"{self.text} "
         
-        if self.reps is not None:
+        if self.reps is not None and self.steps is not None:
             for step in self.steps:
                 val += "\n" + step.__str__(nested=True)
             val += "\n"
