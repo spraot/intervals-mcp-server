@@ -802,10 +802,11 @@ async def get_current_date_and_time_info() -> dict[str, Any]:
         - minute: Current minute (0-59)
         - second: Current second (0-59)
     """
-    # Get local time with timezone info
-    now_local = datetime.now()
-    now_utc = datetime.now(timezone.utc)
-    now_with_tz = datetime.now().astimezone()
+    # Capture the current time once with UTC timezone
+    base_time = datetime.now(timezone.utc)
+    now_utc = base_time
+    now_local = base_time.astimezone()  # Convert to local timezone
+    now_with_tz = base_time.astimezone()  # System's timezone-aware datetime
 
     # Get timezone information
     timezone_name = time.tzname[time.daylight] if time.daylight else time.tzname[0]
