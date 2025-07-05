@@ -283,12 +283,13 @@ def _format_activities_response(
         return f"No named activities found for athlete {athlete_id} in the specified date range. Try with include_unnamed=True to see all activities."
 
     # Format the output
-    activities_summary = "Activities:\n\n"
+    activities_summary = "Activities:"
     for activity in activities:
+        activities_summary += "\n\n"
         if isinstance(activity, dict):
-            activities_summary += format_activity_summary(activity) + "\n"
+            activities_summary += format_activity_summary(activity)
         else:
-            activities_summary += f"Invalid activity format: {activity}\n\n"
+            activities_summary += f"Invalid activity format: {activity}"
 
     return activities_summary
 

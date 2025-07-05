@@ -9,7 +9,7 @@ Training Metrics:
 - ATL Load: 299
 
 Sport-Specific Info:
-- Ride: eFTP = 282.85992
+- Ride: eFTP = 283 W
 
 Vital Signs:
 - Weight: 78 kg
