@@ -113,6 +113,10 @@ class Section:
             self.lines.append(self.indent + line)
 
 
+def format_minutes_seconds(minutes: float) -> str:
+    return f"{minutes // 1:.0f}:{60*(minutes % 1):2.0f}"
+
+
 def format_activity_summary(activity: dict[str, Any]) -> str:
     """Format an activity into a readable string."""
     start_time = activity.get("startTime", activity.get("start_date", "Unknown"))
@@ -426,12 +430,16 @@ def format_athlete_data(athlete: dict[str, Any]) -> str:
     )
     height_str = f"{athlete.get('height', 'N/A')} m" if athlete.get("height") else "N/A"
 
+    # Build location string separately to avoid f-string complexity
+    location_parts = [athlete.get('city'), athlete.get('state'), athlete.get('country')]
+    location_str = ', '.join(filter(None, location_parts))
+    
     result = f"""# Athlete Profile: {athlete.get('name', 'Unknown')}
 
 ## Basic Information
 - **ID**: {athlete.get('id', 'N/A')}
 - **Gender**: {athlete.get('sex', 'N/A')}
-- **Location**: {', '.join(filter(None, [athlete.get('city'), athlete.get('state'), athlete.get('country')]))}
+- **Location**: {location_str}
 - **Height**: {height_str}
 - **Weight**: {weight_str}
 - **Resting HR**: {athlete.get('icu_resting_hr', 'N/A')} bpm
@@ -518,17 +526,20 @@ def format_athlete_data(athlete: dict[str, Any]) -> str:
             # Pace data (running/swimming)
             if sport_setting.get("threshold_pace") or sport_setting.get("pace_zones"):
                 result += "**Pace**:\n"
+                threshold_pace = None
                 if sport_setting.get("threshold_pace"):
                     pace_value = sport_setting["threshold_pace"]
                     pace_units = sport_setting.get("pace_units", "MINS_KM")
                     if pace_units == "MINS_KM":
                         # Convert from m/s to min/km
                         min_per_km = 1000 / (pace_value * 60) if pace_value > 0 else 0
-                        pace_display = f"{min_per_km:.2f} min/km"
+                        pace_display = f"{format_minutes_seconds(min_per_km)} min/km"
+                        threshold_pace = min_per_km
                     elif pace_units == "SECS_100M":
                         # Convert from m/s to sec/100m
                         sec_per_100m = 100 / pace_value if pace_value > 0 else 0
                         pace_display = f"{sec_per_100m:.1f} sec/100m"
+                        threshold_pace = sec_per_100m * 10 / 60
                     else:
                         pace_display = f"{pace_value:.2f} {pace_units}"
                     result += f"- Threshold Pace: {pace_display}\n"
@@ -541,9 +552,9 @@ def format_athlete_data(athlete: dict[str, Any]) -> str:
                     for i, (zone_name, zone_percent) in enumerate(zip(pace_names, pace_zones)):
                         zone_min_percent = pace_zones[i - 1] if i > 0 else 0
                         if zone_percent >= 999:  # Last zone
-                            result += f"  - **{zone_name}**: {zone_min_percent + 1}%+ threshold\n"
+                            result += f"  - **{zone_name}**: {zone_min_percent + 1}%+ threshold ({f"{format_minutes_seconds(threshold_pace*zone_min_percent*0.01)}+ min/km" if threshold_pace else ""})\n"
                         else:
-                            result += f"  - **{zone_name}**: {zone_min_percent + 1}-{zone_percent:.1f}% threshold\n"
+                            result += f"  - **{zone_name}**: {zone_min_percent + 1}-{zone_percent:.1f}% threshold ({f"{format_minutes_seconds(threshold_pace*zone_min_percent*0.01)}-{format_minutes_seconds(threshold_pace*zone_percent*0.01)} min/km" if threshold_pace else ""})\n"
                 result += "\n"
 
             # Training settings
