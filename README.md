@@ -1,5 +1,5 @@
 # Intervals.icu MCP Server
-[![smithery badge](https://smithery.ai/badge/@mvilanova/intervals-mcp-server)](https://smithery.ai/server/@mvilanova/intervals-mcp-server)
+[![smithery badge](https://smithery.ai/badge/@spraot/intervals-mcp-server)](https://smithery.ai/server/@spraot/intervals-mcp-server)
 
 Model Context Protocol (MCP) server for connecting Claude with the Intervals.icu API. It provides tools for authentication and data retrieval for activities, events, and wellness data.
 
@@ -23,7 +23,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ### 2. Clone this repository
 
 ```bash
-git clone https://github.com/mvilanova/intervals-mcp-server.git
+git clone https://github.com/spraot/intervals-mcp-server.git
 cd intervals-mcp-server
 ```
 
@@ -194,6 +194,6 @@ The GNU General Public License v3.0
 
 ### Glama.ai
 
-<a href="https://glama.ai/mcp/servers/@mvilanova/intervals-mcp-server">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/@mvilanova/intervals-mcp-server/badge" alt="Intervals.icu Server MCP server" />
+<a href="https://glama.ai/mcp/servers/@spraot/intervals-mcp-server">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@spraot/intervals-mcp-server/badge" alt="Intervals.icu Server MCP server" />
 </a>
