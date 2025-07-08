@@ -63,7 +63,15 @@ class Section:
                 self.heading_lines = []
             self.lines.extend(lines)
             
-    def append(self, fmt_str: str, value_key: List[str] | str = None, value: Any=None, data: dict[str, Any]=None, none_val: Any=None, defaults: dict[str, Any] | None=None, **kwargs):
+    def append(self, 
+               fmt_str: str, 
+               value_key: List[str] | str = None, 
+               value: Any=None, 
+               data: dict[str, Any]=None, 
+               none_val: Any=None, 
+               defaults: dict[str, Any] | None=None, 
+               **kwargs,
+               ):
         """Append a formatted line if value is not None."""
 
         if defaults is None:
@@ -114,7 +122,24 @@ class Section:
 
 
 def format_minutes_seconds(minutes: float) -> str:
-    return f"{minutes // 1:.0f}:{60*(minutes % 1):2.0f}"
+    return f"{minutes // 1:.0f}:{60*(minutes % 1):02.0f}"
+
+def speed_formatter(activity_type: str | None = None):
+    def format_speed(speed: float | None, add_unit: bool = True, none_val: str | None = None) -> str | None:
+        if speed is None:
+            return none_val
+        if activity_type == "Run":
+            value, unit = f"{format_minutes_seconds(1000 / (speed * 60) if speed > 0 else 0)}", "min/km"
+        elif activity_type == "Ride":
+            value, unit = f"{speed*3.6:.1f}", "km/h"
+        elif activity_type == "Swim":
+            value, unit = f"{format_minutes_seconds(100 / (speed * 60) if speed > 0 else 0)}", "min/100m"
+        else:
+            value, unit = f"{speed:.2f}", "m/s"
+        if add_unit:
+            return f"{value} {unit}"
+        return value
+    return format_speed
 
 
 def format_activity_summary(activity: dict[str, Any]) -> str:
@@ -128,6 +153,8 @@ def format_activity_summary(activity: dict[str, Any]) -> str:
             start_time = dt.strftime("%Y-%m-%d %H:%M:%S")
         except ValueError:
             pass
+
+    format_speed = speed_formatter(activity.get("type"))
 
     lines = []
     main_section = Section(lines, data=activity)
@@ -162,8 +189,8 @@ def format_activity_summary(activity: dict[str, Any]) -> str:
     with Section(lines, data=activity, heading="Other Metrics:", indent='- ') as other_section:
         other_section.append("Cadence: {cadence} rpm")
         other_section.append("Calories: {calories}")
-        other_section.append("Average Speed: {average_speed} m/s")
-        other_section.append("Max Speed: {max_speed} m/s")
+        other_section.append("Average Speed: {}", value=format_speed(activity.get('average_speed')))
+        other_section.append("Max Speed: {}", value=format_speed(activity.get('max_speed')))
         other_section.append("Average Stride: {average_stride} m")
         other_section.append("L/R Balance: {avg_lr_balance}")
         other_section.append("Weight: {weight} kg")
@@ -330,7 +357,7 @@ def format_event_details(event: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def format_intervals(intervals_data: dict[str, Any]) -> str:
+def format_intervals(intervals_data: dict[str, Any], activity_type: str | None = None) -> str:
     """Format intervals data into a readable string with all available fields.
 
     Args:
@@ -345,6 +372,7 @@ def format_intervals(intervals_data: dict[str, Any]) -> str:
     main_section = Section(lines, data=intervals_data, heading="Intervals Analysis:")
     main_section.append("ID: {id}")
     main_section.append("Analyzed: {analyzed}")
+    format_speed = speed_formatter(activity_type)
 
     # Format individual intervals
     if intervals := intervals_data.get("icu_intervals"):
@@ -379,8 +407,8 @@ def format_intervals(intervals_data: dict[str, Any]) -> str:
                         heart_rate_section.append("THb: {average_thb}% / {average_thb_2}%")
 
                     with Section(parent=interval_section, data=interval, heading="Speed & Cadence:") as speed_section:
-                        speed_section.append("Speed: Avg {average_speed}, Min {min_speed}, Max {max_speed} m/s")
-                        speed_section.append("GAP: {gap} m/s")
+                        speed_section.append("Speed: Avg {avg}, Min {min}, Max {max}", avg=format_speed(interval.get('average_speed')), min=format_speed(interval.get('min_speed')), max=format_speed(interval.get('max_speed')))
+                        speed_section.append("GAP: {gap}", gap=format_speed(interval.get('gap')))
                         speed_section.append("Cadence: Avg {average_cadence}, Min {min_cadence}, Max {max_cadence} rpm")
                         speed_section.append("Stride: {average_stride}")
 
@@ -404,7 +432,7 @@ def format_intervals(intervals_data: dict[str, Any]) -> str:
                     group_section.append("Power: Avg {average_watts} watts ({average_watts_kg} W/kg), Max {max_watts} watts ({max_watts_kg} W/kg)", defaults={"average_watts_kg": 0, "max_watts_kg": 0})
                     group_section.append("W. Avg Power: {weighted_average_watts} watts, Intensity: {intensity}")
                     group_section.append("Heart Rate: Avg {average_heartrate}, Max {max_heartrate} bpm")
-                    group_section.append("Speed: Avg {average_speed}, Max {max_speed} m/s")
+                    group_section.append("Speed: Avg {avg}, Max {max}", avg=format_speed(group.get('average_speed')), max=format_speed(group.get('max_speed')))
                     group_section.append("Cadence: Avg {average_cadence}, Max {max_cadence} rpm")
 
     return "\n".join(lines)
@@ -523,26 +551,14 @@ def format_athlete_data(athlete: dict[str, Any]) -> str:
                             result += f"  - **{zone_name}**: {zone_min_percent + 1}-{zone_percent}% FTP ({zone_min_watts}-{zone_max_watts} watts)\n"
                 result += "\n"
 
+            format_speed = speed_formatter(sport_types[0])
+
             # Pace data (running/swimming)
             if sport_setting.get("threshold_pace") or sport_setting.get("pace_zones"):
                 result += "**Pace**:\n"
-                threshold_pace = None
-                if sport_setting.get("threshold_pace"):
-                    pace_value = sport_setting["threshold_pace"]
-                    pace_units = sport_setting.get("pace_units", "MINS_KM")
-                    if pace_units == "MINS_KM":
-                        # Convert from m/s to min/km
-                        min_per_km = 1000 / (pace_value * 60) if pace_value > 0 else 0
-                        pace_display = f"{format_minutes_seconds(min_per_km)} min/km"
-                        threshold_pace = min_per_km
-                    elif pace_units == "SECS_100M":
-                        # Convert from m/s to sec/100m
-                        sec_per_100m = 100 / pace_value if pace_value > 0 else 0
-                        pace_display = f"{sec_per_100m:.1f} sec/100m"
-                        threshold_pace = sec_per_100m * 10 / 60
-                    else:
-                        pace_display = f"{pace_value:.2f} {pace_units}"
-                    result += f"- Threshold Pace: {pace_display}\n"
+                threshold_pace = sport_setting.get("threshold_pace")
+                if threshold_pace:
+                    result += f"- Threshold Pace: {format_speed(threshold_pace, none_val="N/A")}\n"
 
                 # Pace Zones
                 if sport_setting.get("pace_zones") and sport_setting.get("pace_zone_names"):
@@ -552,9 +568,9 @@ def format_athlete_data(athlete: dict[str, Any]) -> str:
                     for i, (zone_name, zone_percent) in enumerate(zip(pace_names, pace_zones)):
                         zone_min_percent = pace_zones[i - 1] if i > 0 else 0
                         if zone_percent >= 999:  # Last zone
-                            result += f"  - **{zone_name}**: {zone_min_percent + 1}%+ threshold ({f"{format_minutes_seconds(threshold_pace*zone_min_percent*0.01)}+ min/km" if threshold_pace else ""})\n"
+                            result += f"  - **{zone_name}**: {zone_min_percent + 1}%+ threshold ({format_speed(threshold_pace*zone_min_percent*0.01, none_val="N/A")}+)\n"
                         else:
-                            result += f"  - **{zone_name}**: {zone_min_percent + 1}-{zone_percent:.1f}% threshold ({f"{format_minutes_seconds(threshold_pace*zone_min_percent*0.01)}-{format_minutes_seconds(threshold_pace*zone_percent*0.01)} min/km" if threshold_pace else ""})\n"
+                            result += f"  - **{zone_name}**: {zone_min_percent + 1}-{zone_percent:.1f}% threshold ({format_speed(threshold_pace*zone_min_percent*0.01, none_val="N/A")}-{format_speed(threshold_pace*zone_percent*0.01, none_val="N/A")})\n"
                 result += "\n"
 
             # Training settings

@@ -438,8 +438,12 @@ async def get_activity_intervals(activity_id: str, api_key: str | None = None) -
     ):
         return f"No interval data or unrecognized format for activity {activity_id}."
 
+    # Get activity type from new API call
+    activity_result = await make_intervals_request(url=f"/activity/{activity_id}", api_key=api_key)
+    activity_type = activity_result.get("type")
+
     # Format the intervals data
-    return format_intervals(result)
+    return format_intervals(result, activity_type)
 
 
 @mcp.tool()
