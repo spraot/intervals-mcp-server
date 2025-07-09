@@ -14,8 +14,8 @@ class Section:
     Only adds the heading if any lines are actually written.
     Lines are only written if the value is not None.
     """
-    
-    def __init__(self, 
+
+    def __init__(self,
                  lines: List[str] | None = None,
                  parent: Any | None=None,
                  heading: str = None,
@@ -35,7 +35,7 @@ class Section:
 
         if lines is None:
             self.lines = []
-        
+
         if len(self.lines) > 0:
             self.heading_lines.append("")
         if heading is not None:
@@ -49,7 +49,7 @@ class Section:
 
     def __enter__(self):
         return self
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.parent is not None:
             if len(self.parent.lines) > 0:
@@ -57,19 +57,20 @@ class Section:
             self.parent.append_lines(self.lines)
 
     def append_lines(self, lines: List[str]):
+        """Append multiple lines to the formatted output."""
         if len(lines) > 0:
             if len(self.heading_lines) > 0:
                 self.lines.extend(self.heading_lines)
                 self.heading_lines = []
             self.lines.extend(lines)
-            
-    def append(self, 
-               fmt_str: str, 
-               value_key: List[str] | str = None, 
-               value: Any=None, 
-               data: dict[str, Any]=None, 
-               none_val: Any=None, 
-               defaults: dict[str, Any] | None=None, 
+
+    def append(self,
+               fmt_str: str,
+               value_key: List[str] | str = None,
+               value: Any=None,
+               data: dict[str, Any]=None,
+               none_val: Any=None,
+               defaults: dict[str, Any] | None=None,
                **kwargs,
                ):
         """Append a formatted line if value is not None."""
@@ -104,14 +105,12 @@ class Section:
                 if none_val is not None and e.args[0] not in data:
                     data[e.args[0]] = none_val
                     continue
-                else:
-                    return
-            except IndexError as e:
+                return
+            except IndexError:
                 if none_val is not None and len(args) == 0:
                     args.append(none_val)
                     continue
-                else:
-                    return
+                return
             break
 
         if line is not None:
@@ -122,9 +121,11 @@ class Section:
 
 
 def format_minutes_seconds(minutes: float) -> str:
+    """Format minutes as MM:SS string."""
     return f"{minutes // 1:.0f}:{60*(minutes % 1):02.0f}"
 
 def speed_formatter(activity_type: str | None = None):
+    """Return a speed formatter function for the given activity type."""
     def format_speed(speed: float | None, add_unit: bool = True, none_val: str | None = None) -> str | None:
         if speed is None:
             return none_val
@@ -237,6 +238,7 @@ def format_workout(workout: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 def format_wellness_entry(entries: dict[str, Any]) -> str:
+    """Format wellness entries into a readable string."""
     lines = []
     main_section = Section(lines, data=entries, heading="Wellness Data:")
     main_section.append("Date: {id}")
@@ -461,7 +463,7 @@ def format_athlete_data(athlete: dict[str, Any]) -> str:
     # Build location string separately to avoid f-string complexity
     location_parts = [athlete.get('city'), athlete.get('state'), athlete.get('country')]
     location_str = ', '.join(filter(None, location_parts))
-    
+
     result = f"""# Athlete Profile: {athlete.get('name', 'Unknown')}
 
 ## Basic Information

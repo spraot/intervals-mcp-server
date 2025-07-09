@@ -169,7 +169,7 @@ def test_add_or_update_event(monkeypatch):
         "type": "Ride",
     }
 
-    sample_data = {
+    _sample_data = {
         "steps": [
             {"duration": "15m", "target": "80%", "description": "Warm-up"},
             {"duration": "3m", "target": "110%", "description": "High-intensity interval"},

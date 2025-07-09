@@ -113,11 +113,12 @@ if not re.fullmatch(r"i?\d+", ATHLETE_ID):
 
 
 def validate_date(date_str: str) -> str:
+    """Validate date string format (YYYY-MM-DD) and return it if valid."""
     try:
         datetime.strptime(date_str, "%Y-%m-%d")
         return date_str
-    except ValueError:
-        raise ValueError("Invalid date format. Please use YYYY-MM-DD.")
+    except ValueError as exc:
+        raise ValueError("Invalid date format. Please use YYYY-MM-DD.") from exc
 
 
 def _get_error_message(error_code: int, error_text: str) -> str:
@@ -674,7 +675,7 @@ async def delete_events_by_date_range(
         )
         if isinstance(result, dict) and "error" in result:
             failed_events.append(event.get('id'))
-    return f"Deleted {len(events) - len(failed_events)} events. Failed to delete {len(failed_events)} events: {failed_events}" 
+    return f"Deleted {len(events) - len(failed_events)} events. Failed to delete {len(failed_events)} events: {failed_events}"
 
 
 @mcp.tool()

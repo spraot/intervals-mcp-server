@@ -1,3 +1,8 @@
+"""Type definitions for Intervals.icu workout data structures.
+
+This module contains dataclasses and enums for representing workout documents,
+steps, values, and other Intervals.icu data structures.
+"""
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Any, Union
 from enum import Enum
@@ -19,12 +24,14 @@ __all__ = [
 
 
 class Option(Enum):
+    """Enumeration of workout configuration options."""
     CATEGORY = "category"
     POOL_LENGTH = "pool_length"
     POWER = "power"
 
 
 class WorkoutTarget(Enum):
+    """Enumeration of workout target types."""
     AUTO = "AUTO"
     POWER = "POWER"
     HR = "HR"
@@ -32,14 +39,15 @@ class WorkoutTarget(Enum):
 
 
 class HrTarget(Enum):
+    """Enumeration of heart rate target types."""
     LAP = "lap"
     INSTANT = "1s"
     THREE_SECOND = "3s"
     TEN_SECOND = "10s"
     THIRTY_SECOND = "30s"
-    
 
 class Intensity(Enum):
+    """Enumeration of workout intensity levels."""
     ACTIVE = "active"
     REST = "rest"
     WARMUP = "warmup"
@@ -50,6 +58,7 @@ class Intensity(Enum):
 
 
 class PaceUnits(Enum):
+    """Enumeration of pace unit types."""
     SECS_100M = "SECS_100M"
     SECS_100Y = "SECS_100Y"
     MINS_KM = "MINS_KM"
@@ -58,6 +67,7 @@ class PaceUnits(Enum):
 
 
 class ValueUnits(Enum):
+    """Enumeration of value unit types."""
     PERCENT_MMP = "%mmp"
     PERCENT_HR = "%hr"
     PERCENT_LTHR = "%lthr"
@@ -77,6 +87,7 @@ def float_to_str(value: float) -> str:
 
 @dataclass
 class Value:
+    """Represents a workout target value with optional start/end for ranges or ramps."""
     value: Optional[float] = None
     start: Optional[float] = None
     end: Optional[float] = None
@@ -126,28 +137,28 @@ class Value:
     def _format_value(self, value: float) -> str:
         if self.units in [ValueUnits.PERCENT_HR, ValueUnits.PERCENT_MMP, ValueUnits.PERCENT_LTHR, ValueUnits.PERCENT_PACE, ValueUnits.PERCENT_FTP]:
             return f"{float_to_str(value)}%"
-        elif self.units in [ValueUnits.POWER_ZONE, ValueUnits.HR_ZONE, ValueUnits.PACE_ZONE]:
+        if self.units in [ValueUnits.POWER_ZONE, ValueUnits.HR_ZONE, ValueUnits.PACE_ZONE]:
             return f"Z{float_to_str(value)}"
-        elif self.units in [ValueUnits.WATTS]:
+        if self.units in [ValueUnits.WATTS]:
             return f"{float_to_str(value)}W"
-        elif self.units in [ValueUnits.CADENCE]:
+        if self.units in [ValueUnits.CADENCE]:
             return f"{float_to_str(value)}rpm"
         return float_to_str(value)
 
     def _format_units(self) -> str:
         if self.units in [ValueUnits.PERCENT_HR, ValueUnits.HR_ZONE]:
             return "HR"
-        elif self.units in [ValueUnits.PERCENT_MMP]:
+        if self.units in [ValueUnits.PERCENT_MMP]:
             return "MMP"
-        elif self.units in [ValueUnits.PERCENT_LTHR]:
+        if self.units in [ValueUnits.PERCENT_LTHR]:
             return "LTHR"
-        elif self.units in [ValueUnits.PERCENT_PACE, ValueUnits.PACE_ZONE]:
+        if self.units in [ValueUnits.PERCENT_PACE, ValueUnits.PACE_ZONE]:
             return "Pace"
-        elif self.units in [ValueUnits.PERCENT_FTP]:
+        if self.units in [ValueUnits.PERCENT_FTP]:
             return "ftp"
-        elif self.units in [ValueUnits.POWER_ZONE]:
+        if self.units in [ValueUnits.POWER_ZONE]:
             return "W"
-        elif self.units in [ValueUnits.CADENCE]:
+        if self.units in [ValueUnits.CADENCE]:
             return "Cadence"
         return ""
 
@@ -166,6 +177,7 @@ class Value:
 
 @dataclass
 class Step:
+    """Represents a workout step with text, duration, distance, intensity, and target values."""
     text: Optional[str] = None
     text_locale: Optional[Dict[str, str]] = None
     duration: Optional[int] = None
@@ -361,7 +373,7 @@ class Step:
                 val += f"{self.cadence} "
         if self.text is not None:
             val += f"{self.text} "
-        
+
         if self.reps is not None:
             if not self.steps:
                 raise ValueError("Nested steps are required if reps is specified")
@@ -375,15 +387,15 @@ class Step:
 
 @dataclass
 class SportSettings:
+    """Placeholder class for sport-specific settings."""
     # Add fields as needed based on the actual SportSettings class
-    pass
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert SportSettings instance to dictionary for JSON serialization."""
         return {}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'SportSettings':
+    def from_dict(cls, _data: Dict[str, Any]) -> 'SportSettings':
         """Create SportSettings instance from dictionary."""
         return cls()
 
@@ -399,6 +411,7 @@ class SportSettings:
 
 @dataclass
 class WorkoutDoc:
+    """Main workout document containing description, duration, steps, and settings."""
     description: Optional[str] = None
     description_locale: Optional[Dict[str, str]] = None
     duration: Optional[int] = None
@@ -407,11 +420,11 @@ class WorkoutDoc:
     lthr: Optional[int] = None
     threshold_pace: Optional[float] = None  # meters/sec
     pace_units: Optional[PaceUnits] = None
-    sportSettings: Optional[SportSettings] = None
+    sport_settings: Optional[SportSettings] = None
     category: Optional[str] = None
     target: Optional[WorkoutTarget] = None
     steps: Optional[List[Step]] = None
-    zoneTimes: Optional[List[Union[int, Any]]] = None  # sometimes array of ints otherwise array of objects
+    zone_times: Optional[List[Union[int, Any]]] = None  # sometimes array of ints otherwise array of objects
     options: Optional[Dict[str, str]] = None
     locales: Optional[List[str]] = None
 
@@ -434,16 +447,16 @@ class WorkoutDoc:
             data['threshold_pace'] = self.threshold_pace
         if self.pace_units is not None:
             data['pace_units'] = self.pace_units.value
-        if self.sportSettings is not None:
-            data['sportSettings'] = self.sportSettings.to_dict()
+        if self.sport_settings is not None:
+            data['sportSettings'] = self.sport_settings.to_dict()
         if self.category is not None:
             data['category'] = self.category
         if self.target is not None:
             data['target'] = self.target.value
         if self.steps is not None:
             data['steps'] = [step.to_dict() for step in self.steps]
-        if self.zoneTimes is not None:
-            data['zoneTimes'] = self.zoneTimes
+        if self.zone_times is not None:
+            data['zoneTimes'] = self.zone_times
         if self.options is not None:
             data['options'] = self.options
         if self.locales is not None:
@@ -471,7 +484,7 @@ class WorkoutDoc:
         if 'pace_units' in data:
             kwargs['pace_units'] = PaceUnits(data['pace_units'])
         if 'sportSettings' in data:
-            kwargs['sportSettings'] = SportSettings.from_dict(data['sportSettings'])
+            kwargs['sport_settings'] = SportSettings.from_dict(data['sportSettings'])
         if 'category' in data:
             kwargs['category'] = data['category']
         if 'target' in data:
@@ -479,7 +492,7 @@ class WorkoutDoc:
         if 'steps' in data:
             kwargs['steps'] = [Step.from_dict(step) for step in data['steps']]
         if 'zoneTimes' in data:
-            kwargs['zoneTimes'] = data['zoneTimes']
+            kwargs['zone_times'] = data['zoneTimes']
         if 'options' in data:
             kwargs['options'] = data['options']
         if 'locales' in data:
