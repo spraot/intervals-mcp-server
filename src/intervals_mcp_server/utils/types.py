@@ -145,7 +145,7 @@ class Value:
             return f"{float_to_str(value)}rpm"
         return float_to_str(value)
 
-    def _format_units(self) -> str:
+    def _format_units(self) -> str:  # pylint: disable=locally-disabled, too-many-return-statements
         if self.units in [ValueUnits.PERCENT_HR, ValueUnits.HR_ZONE]:
             return "HR"
         if self.units in [ValueUnits.PERCENT_MMP]:
@@ -176,7 +176,7 @@ class Value:
 
 
 @dataclass
-class Step:
+class Step:  # pylint: disable=locally-disabled, too-many-instance-attributes
     """Represents a workout step with text, duration, distance, intensity, and target values."""
     text: Optional[str] = None
     text_locale: Optional[Dict[str, str]] = None
@@ -202,7 +202,7 @@ class Step:
     _pace: Optional[Value] = None
     _distance: Optional[float] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:  # pylint: disable=locally-disabled, too-many-branches
         """Convert Step instance to dictionary for JSON serialization."""
         data = {}
         if self.text is not None:
@@ -252,7 +252,7 @@ class Step:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Step':
+    def from_dict(cls, data: Dict[str, Any]) -> 'Step':  # pylint: disable=locally-disabled, too-many-branches
         """Create Step instance from dictionary."""
         kwargs = {}
         if 'text' in data:
@@ -306,7 +306,7 @@ class Step:
         return json.dumps(self.to_dict())
 
     @classmethod
-    def from_json(cls, json_str: str) -> 'Step':
+    def from_json(cls, json_str: str) -> 'Step':  # pylint: disable=locally-disabled, too-many-branches
         """Create Step instance from JSON string."""
         return cls.from_dict(json.loads(json_str))
 
@@ -334,7 +334,7 @@ class Step:
             return f"{float_to_str(self.distance)}mtr"
         return f"{float_to_str(self.distance / 1000)}km"
 
-    def __str__(self, nested: bool = False) -> str:
+    def __str__(self, nested: bool = False) -> str:  # pylint: disable=locally-disabled, too-many-branches
         val = ""
         if self.reps is not None:
             if nested:
@@ -410,7 +410,7 @@ class SportSettings:
 
 
 @dataclass
-class WorkoutDoc:
+class WorkoutDoc:  # pylint: disable=locally-disabled, too-many-instance-attributes
     """Main workout document containing description, duration, steps, and settings."""
     description: Optional[str] = None
     description_locale: Optional[Dict[str, str]] = None
@@ -428,7 +428,7 @@ class WorkoutDoc:
     options: Optional[Dict[str, str]] = None
     locales: Optional[List[str]] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:  # pylint: disable=locally-disabled, too-many-branches
         """Convert WorkoutDoc instance to dictionary for JSON serialization."""
         data = {}
         if self.description is not None:
@@ -464,7 +464,7 @@ class WorkoutDoc:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'WorkoutDoc':
+    def from_dict(cls, data: Dict[str, Any]) -> 'WorkoutDoc':  # pylint: disable=locally-disabled, too-many-branches
         """Create WorkoutDoc instance from dictionary."""
         kwargs = {}
         if 'description' in data:

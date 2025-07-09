@@ -679,7 +679,7 @@ async def delete_events_by_date_range(
 
 
 @mcp.tool()
-async def add_or_update_event(
+async def add_or_update_event( # pylint: disable=locally-disabled, too-many-arguments, too-many-positional-arguments
     workout_type: str,
     name: str,
     athlete_id: str | None = None,
@@ -754,25 +754,25 @@ async def add_or_update_event(
         - Define one of "power", "hr" or "pace" to define step intensity
     """
     message = None
-    athlete_id_to_use = athlete_id if athlete_id is not None else ATHLETE_ID
-    if not athlete_id_to_use:
+    if not athlete_id:
+        athlete_id = ATHLETE_ID
+    if not athlete_id:
         message = "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
     else:
         if not start_date:
             start_date = datetime.now().strftime("%Y-%m-%d")
         try:
-            resolved_workout_type = _resolve_workout_type(name, workout_type)
             data = {
                 "start_date_local": start_date + "T00:00:00",
                 "category": "WORKOUT",
                 "name": name,
                 "description": str(workout_doc) if workout_doc else None,
-                "type": resolved_workout_type,
+                "type": _resolve_workout_type(name, workout_type),
                 "moving_time": moving_time,
                 "distance": distance,
             }
             result = await make_intervals_request(
-                url=f"/athlete/{athlete_id_to_use}/events" +("/"+event_id if event_id else ""),
+                url=f"/athlete/{athlete_id}/events" +("/"+event_id if event_id else ""),
                 api_key=api_key,
                 data=data,
                 method="PUT" if event_id else "POST",
@@ -782,7 +782,7 @@ async def add_or_update_event(
                 error_message = result.get("message", "Unknown error")
                 message = f"Error {action} event: {error_message}, data used: {data}"
             elif not result:
-                message = f"No events {action} for athlete {athlete_id_to_use}."
+                message = f"No events {action} for athlete {athlete_id}."
             elif isinstance(result, dict):
                 message = f"Successfully {action} event: {json.dumps(result, indent=2)}"
             else:

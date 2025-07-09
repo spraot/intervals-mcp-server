@@ -190,7 +190,7 @@ def test_add_or_update_event(monkeypatch):
     assert '"name": "Test Workout"' in result
 
 
-def test_get_current_date_and_time_info():
+def test_get_current_date_and_time_info():  # pylint: disable=locally-disabled, too-many-statements
     """
     Test get_current_date_and_time_info returns current date and time information
     """

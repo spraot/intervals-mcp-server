@@ -15,12 +15,12 @@ class Section:
     Lines are only written if the value is not None.
     """
 
-    def __init__(self,
+    def __init__(self,  # pylint: disable=locally-disabled, too-many-arguments, too-many-positional-arguments
                  lines: List[str] | None = None,
-                 parent: Any | None=None,
-                 heading: str = None,
+                 parent: Any | None = None,
+                 heading: str | None = None,
                  indent: int | str = "",
-                 data: dict[str, Any]=None):
+                 data: dict[str, Any] | None = None):
         self.heading_lines = []
         self.lines = lines
         self.data = self.process_data(data)
@@ -64,13 +64,13 @@ class Section:
                 self.heading_lines = []
             self.lines.extend(lines)
 
-    def append(self,
+    def append(self,  # pylint: disable=locally-disabled, too-many-arguments, too-many-positional-arguments, too-many-branches
                fmt_str: str,
-               value_key: List[str] | str = None,
-               value: Any=None,
-               data: dict[str, Any]=None,
-               none_val: Any=None,
-               defaults: dict[str, Any] | None=None,
+               value_key: List[str] | str | None = None,
+               value: Any | None = None,
+               data: dict[str, Any] | None = None,
+               none_val: Any | None = None,
+               defaults: dict[str, Any] | None = None,
                **kwargs,
                ):
         """Append a formatted line if value is not None."""
@@ -143,7 +143,7 @@ def speed_formatter(activity_type: str | None = None):
     return format_speed
 
 
-def format_activity_summary(activity: dict[str, Any]) -> str:
+def format_activity_summary(activity: dict[str, Any]) -> str:  # pylint: disable=locally-disabled, too-many-statements
     """Format an activity into a readable string."""
     start_time = activity.get("startTime", activity.get("start_date", "Unknown"))
 
@@ -237,7 +237,7 @@ def format_workout(workout: dict[str, Any]) -> str:
     main_section.append("Intervals: {}", value=len(workout.get("intervals", [])))
     return "\n".join(lines)
 
-def format_wellness_entry(entries: dict[str, Any]) -> str:
+def format_wellness_entry(entries: dict[str, Any]) -> str:  # pylint: disable=locally-disabled, too-many-statements
     """Format wellness entries into a readable string."""
     lines = []
     main_section = Section(lines, data=entries, heading="Wellness Data:")
@@ -359,7 +359,7 @@ def format_event_details(event: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def format_intervals(intervals_data: dict[str, Any], activity_type: str | None = None) -> str:
+def format_intervals(intervals_data: dict[str, Any], activity_type: str | None = None) -> str:  # pylint: disable=locally-disabled, too-many-statements, too-many-locals
     """Format intervals data into a readable string with all available fields.
 
     Args:
@@ -440,7 +440,7 @@ def format_intervals(intervals_data: dict[str, Any], activity_type: str | None =
     return "\n".join(lines)
 
 
-def format_athlete_data(athlete: dict[str, Any]) -> str:
+def format_athlete_data(athlete: dict[str, Any]) -> str:  # pylint: disable=locally-disabled, too-many-locals, too-many-branches, too-many-statements
     """Format athlete data into a readable Markdown string focused on key sports performance metrics.
 
     Args:
@@ -480,7 +480,7 @@ def format_athlete_data(athlete: dict[str, Any]) -> str:
 """
 
     # Process sport settings
-    if "sportSettings" in athlete and athlete["sportSettings"]:
+    if "sportSettings" in athlete and athlete["sportSettings"]:  # pylint: disable=locally-disabled, too-many-nested-blocks
         result += "## Sport-Specific Training Zones\n\n"
 
         for sport_setting in athlete["sportSettings"]:
