@@ -312,7 +312,9 @@ def format_wellness_entry(entries: dict[str, Any]) -> str:  # pylint: disable=lo
     return "\n".join(lines)
 
 
-def format_event_summary(event: dict[str, Any]) -> str:
+def format_event_summary(
+    event: dict[str, Any], shared_event: dict[str, Any] | None = None
+) -> str:
     """Format a basic event summary into a readable string."""
 
     lines = []
@@ -323,7 +325,20 @@ def format_event_summary(event: dict[str, Any]) -> str:
         main_section.append("Name: {name}")
         main_section.append("Description: \n{description}")
         main_section.lines[-1] = main_section.lines[-1].strip()
+    _append_formatted_shared_event_summary(lines, shared_event)
     return "\n".join(lines)
+
+
+def _append_formatted_shared_event_summary(lines: List[str], shared_event: dict[str, Any] | None) -> str:
+    if shared_event:
+        with Section(lines, data=shared_event) as sub_section:
+            shared_event_types = shared_event.get("types", ["Unknown"])
+            sub_section.append("Shared Event Description: {description}", value_key="")
+            sub_section.append("Sport Types: {}", value=', '.join(shared_event_types))
+            sub_section.append("Event Website: {website}")
+            sub_section.append("Location: {location}")
+            sub_section.append("Address: {address}")
+            sub_section.append("Country: {country}")
 
 
 def format_event_details(event: dict[str, Any]) -> str:
