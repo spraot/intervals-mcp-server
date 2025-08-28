@@ -10,7 +10,7 @@ from typing import Any, List
 
 class Section:
     """Context manager for conditionally adding sections to output.
-
+    
     Only adds the heading if any lines are actually written.
     Lines are only written if the value is not None.
     """
@@ -312,10 +312,7 @@ def format_wellness_entry(entries: dict[str, Any]) -> str:  # pylint: disable=lo
     return "\n".join(lines)
 
 
-
-def format_event_summary(
-    event: dict[str, Any], shared_event: dict[str, Any] | None = None
-) -> str:
+def format_event_summary(event: dict[str, Any], shared_event: dict[str, Any] | None = None) -> str:
     """Format a basic event summary into a readable string."""
 
     lines = []

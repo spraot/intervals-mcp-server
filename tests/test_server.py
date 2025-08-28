@@ -56,9 +56,7 @@ def test_get_activities(monkeypatch):
     async def fake_request(*_args, **_kwargs):
         return [sample]
 
-    monkeypatch.setattr(
-        "intervals_mcp_server.server.make_intervals_request", fake_request
-    )
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
     result = asyncio.run(get_activities(athlete_id="1", limit=1, include_unnamed=True))
     assert "Morning Ride" in result
     assert "Activities:" in result
@@ -80,9 +78,7 @@ def test_get_activity_details(monkeypatch):
     async def fake_request(*_args, **_kwargs):
         return sample
 
-    monkeypatch.setattr(
-        "intervals_mcp_server.server.make_intervals_request", fake_request
-    )
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
     result = asyncio.run(get_activity_details(123))
     assert "Activity: Morning Ride" in result
 
@@ -102,12 +98,8 @@ def test_get_events(monkeypatch):
     async def fake_request(*_args, **_kwargs):
         return [event]
 
-    monkeypatch.setattr(
-        "intervals_mcp_server.server.make_intervals_request", fake_request
-    )
-    result = asyncio.run(
-        get_events(athlete_id="1", start_date="2024-01-01", end_date="2024-01-02")
-    )
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    result = asyncio.run(get_events(athlete_id="1", start_date="2024-01-01", end_date="2024-01-02"))
     assert "Test Event" in result
     assert "Events:" in result
 
@@ -127,9 +119,7 @@ def test_get_event_by_id(monkeypatch):
     async def fake_request(*_args, **_kwargs):
         return event
 
-    monkeypatch.setattr(
-        "intervals_mcp_server.server.make_intervals_request", fake_request
-    )
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
     result = asyncio.run(get_event_by_id("e1", athlete_id="1"))
     assert "Event Details:" in result
     assert "Test Event" in result
@@ -150,9 +140,7 @@ def test_get_wellness_data(monkeypatch):
     async def fake_request(*_args, **_kwargs):
         return wellness
 
-    monkeypatch.setattr(
-        "intervals_mcp_server.server.make_intervals_request", fake_request
-    )
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
     result = asyncio.run(get_wellness_data(athlete_id="1"))
     assert "Wellness Data:" in result
     assert "2024-01-01" in result
@@ -166,9 +154,7 @@ def test_get_activity_intervals(monkeypatch):
     async def fake_request(*_args, **_kwargs):
         return INTERVALS_DATA
 
-    monkeypatch.setattr(
-        "intervals_mcp_server.server.make_intervals_request", fake_request
-    )
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
     result = asyncio.run(get_activity_intervals("123"))
     assert "Intervals Analysis:" in result
     assert "Rep 1" in result
@@ -189,16 +175,9 @@ def test_add_or_update_event(monkeypatch):
     async def fake_post_request(*_args, **_kwargs):
         return expected_response
 
-    monkeypatch.setattr(
-        "intervals_mcp_server.server.make_intervals_request", fake_post_request
-    )
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_post_request)
     result = asyncio.run(
-        add_or_update_event(
-            athlete_id="i1",
-            start_date="2024-01-15",
-            name="Test Workout",
-            workout_type="Ride",
-        )
+        add_or_update_event(athlete_id="i1", start_date="2024-01-15", name="Test Workout", workout_type="Ride")
     )
     assert "Successfully created event:" in result
     assert '"id": "e123"' in result
@@ -262,9 +241,7 @@ def test_get_current_date_and_time_info():  # pylint: disable=locally-disabled, 
     # Verify date and time formats
     datetime.strptime(result["current_date"], "%Y-%m-%d")  # Should not raise
     datetime.strptime(result["current_time"], "%H:%M:%S")  # Should not raise
-    datetime.strptime(
-        result["current_datetime"], "%Y-%m-%dT%H:%M:%S"
-    )  # Should not raise
+    datetime.strptime(result["current_datetime"], "%Y-%m-%dT%H:%M:%S")  # Should not raise
     assert result["utc_datetime"].endswith("Z")  # UTC should end with Z
 
     # Verify timezone offset format (±HH:MM)
@@ -274,15 +251,7 @@ def test_get_current_date_and_time_info():  # pylint: disable=locally-disabled, 
     assert len(result["timezone_name"]) > 0
 
     # Verify day of week is valid
-    valid_days = [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-    ]
+    valid_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     assert result["day_of_week"] in valid_days
 
 
@@ -375,7 +344,7 @@ def test_create_workout_success(monkeypatch):
         return mock_response
 
     monkeypatch.setattr(
-        "intervals_mcp_server.server.make_intervals_post_request", fake_post_request
+        "intervals_mcp_server.server.make_intervals_request", fake_post_request
     )
 
     result = asyncio.run(
@@ -403,7 +372,7 @@ def test_create_workout_api_error(monkeypatch):
         return mock_error_response
 
     monkeypatch.setattr(
-        "intervals_mcp_server.server.make_intervals_post_request", fake_post_request
+        "intervals_mcp_server.server.make_intervals_request", fake_post_request
     )
 
     result = asyncio.run(

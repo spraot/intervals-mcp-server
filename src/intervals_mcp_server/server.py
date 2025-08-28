@@ -48,7 +48,7 @@ Usage:
     See the README for more details on configuration and usage.
 """
 
-import json
+from json import JSONDecodeError
 import logging
 import os
 import re
@@ -56,8 +56,8 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
-from json import JSONDecodeError
 from typing import Any
+import json
 
 import httpx  # pylint: disable=import-error
 from mcp.server.fastmcp import FastMCP  # pylint: disable=import-error
@@ -113,9 +113,7 @@ async def lifespan(_app: FastMCP):
 mcp = FastMCP("intervals-icu", lifespan=lifespan)
 
 # Constants
-INTERVALS_API_BASE_URL = os.getenv(
-    "INTERVALS_API_BASE_URL", "https://intervals.icu/api/v1"
-)
+INTERVALS_API_BASE_URL = os.getenv("INTERVALS_API_BASE_URL", "https://intervals.icu/api/v1")
 API_KEY = os.getenv("API_KEY", "")  # Provide default empty string
 ATHLETE_ID = os.getenv("ATHLETE_ID", "")  # Default athlete ID from .env
 USER_AGENT = "intervalsicu-mcp-server/1.0"
@@ -249,9 +247,7 @@ def _parse_activities_from_result(result: Any) -> list[dict[str, Any]]:
                 activities = [item for item in value if isinstance(item, dict)]
                 break
         # If no list was found but the dict has typical activity fields, treat it as a single activity
-        if not activities and any(
-            key in result for key in ["name", "startTime", "distance"]
-        ):
+        if not activities and any(key in result for key in ["name", "startTime", "distance"]):
             activities = [result]
 
     return activities
@@ -304,7 +300,9 @@ def _format_activities_response(
     """Format the activities response based on the results."""
     if not activities:
         if include_unnamed:
-            return f"No valid activities found for athlete {athlete_id} in the specified date range."
+            return (
+                f"No valid activities found for athlete {athlete_id} in the specified date range."
+            )
         return f"No named activities found for athlete {athlete_id} in the specified date range. Try with include_unnamed=True to see all activities."
 
     # Format the output
@@ -398,9 +396,7 @@ async def get_activity_details(activity_id: str, api_key: str | None = None) -> 
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
     """
     # Call the Intervals.icu API
-    result = await make_intervals_request(
-        url=f"/activity/{activity_id}", api_key=api_key
-    )
+    result = await make_intervals_request(url=f"/activity/{activity_id}", api_key=api_key)
 
     if isinstance(result, dict) and "error" in result:
         error_message = result.get("message", "Unknown error")
@@ -423,15 +419,11 @@ async def get_activity_details(activity_id: str, api_key: str | None = None) -> 
         zones = activity_data["zones"]
         detailed_view += "\nPower Zones:\n"
         for zone in zones.get("power", []):
-            detailed_view += (
-                f"Zone {zone.get('number')}: {zone.get('secondsInZone')} seconds\n"
-            )
+            detailed_view += f"Zone {zone.get('number')}: {zone.get('secondsInZone')} seconds\n"
 
         detailed_view += "\nHeart Rate Zones:\n"
         for zone in zones.get("hr", []):
-            detailed_view += (
-                f"Zone {zone.get('number')}: {zone.get('secondsInZone')} seconds\n"
-            )
+            detailed_view += f"Zone {zone.get('number')}: {zone.get('secondsInZone')} seconds\n"
 
     return detailed_view
 
@@ -448,9 +440,7 @@ async def get_activity_intervals(activity_id: str, api_key: str | None = None) -
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
     """
     # Call the Intervals.icu API
-    result = await make_intervals_request(
-        url=f"/activity/{activity_id}/intervals", api_key=api_key
-    )
+    result = await make_intervals_request(url=f"/activity/{activity_id}/intervals", api_key=api_key)
 
     if isinstance(result, dict) and "error" in result:
         error_message = result.get("message", "Unknown error")
@@ -467,9 +457,7 @@ async def get_activity_intervals(activity_id: str, api_key: str | None = None) -
         return f"No interval data or unrecognized format for activity {activity_id}."
 
     # Get activity type from new API call
-    activity_result = await make_intervals_request(
-        url=f"/activity/{activity_id}", api_key=api_key
-    )
+    activity_result = await make_intervals_request(url=f"/activity/{activity_id}", api_key=api_key)
     activity_type = activity_result.get("type")
 
     # Format the intervals data
@@ -669,7 +657,9 @@ async def get_wellness_data(
 
     # Format the response
     if not result:
-        return f"No wellness data found for athlete {athlete_id_to_use} in the specified date range."
+        return (
+            f"No wellness data found for athlete {athlete_id_to_use} in the specified date range."
+        )
 
     wellness_summary = "Wellness Data:\n\n"
 
@@ -724,9 +714,7 @@ async def delete_event(
     if not event_id:
         return "Error: No event ID provided."
     result = await make_intervals_request(
-        url=f"/athlete/{athlete_id_to_use}/events/{event_id}",
-        api_key=api_key,
-        method="DELETE",
+        url=f"/athlete/{athlete_id_to_use}/events/{event_id}", api_key=api_key, method="DELETE"
     )
     if isinstance(result, dict) and "error" in result:
         return f"Error deleting event: {result.get('message')}"
@@ -761,17 +749,15 @@ async def delete_events_by_date_range(
     failed_events = []
     for event in events:
         result = await make_intervals_request(
-            url=f"/athlete/{athlete_id_to_use}/events/{event.get('id')}",
-            api_key=api_key,
-            method="DELETE",
+            url=f"/athlete/{athlete_id_to_use}/events/{event.get('id')}", api_key=api_key, method="DELETE"
         )
         if isinstance(result, dict) and "error" in result:
-            failed_events.append(event.get("id"))
+            failed_events.append(event.get('id'))
     return f"Deleted {len(events) - len(failed_events)} events. Failed to delete {len(failed_events)} events: {failed_events}"
 
 
 @mcp.tool()
-async def add_or_update_event(  # pylint: disable=locally-disabled, too-many-arguments, too-many-positional-arguments
+async def add_or_update_event( # pylint: disable=locally-disabled, too-many-arguments, too-many-positional-arguments
     workout_type: str,
     name: str,
     athlete_id: str | None = None,
@@ -795,7 +781,7 @@ async def add_or_update_event(  # pylint: disable=locally-disabled, too-many-arg
         workout_type: Workout type (e.g. Ride, Run, Swim, Walk, Row)
         moving_time: Total expected moving time of the workout in seconds (optional)
         distance: Total expected distance of the workout in meters (optional)
-
+    
     Example:
         "workout_doc": {
             "description": "High-intensity workout for increasing VO2 max",
@@ -809,7 +795,7 @@ async def add_or_update_event(  # pylint: disable=locally-disabled, too-many-arg
                 {"text": ""}, # Add comments or blank lines for readability
             ]
         }
-
+    
     Step properties:
         distance: Distance of step in meters
             {"distance": "5000"}
@@ -864,8 +850,7 @@ async def add_or_update_event(  # pylint: disable=locally-disabled, too-many-arg
                 "distance": distance,
             }
             result = await make_intervals_request(
-                url=f"/athlete/{athlete_id}/events"
-                + ("/" + event_id if event_id else ""),
+                url=f"/athlete/{athlete_id}/events" +("/"+event_id if event_id else ""),
                 api_key=api_key,
                 data=data,
                 method="PUT" if event_id else "POST",
@@ -1016,9 +1001,7 @@ async def calculate_date_info(date: str) -> dict[str, Any]:
         # Parse the input date
         target_date = datetime.strptime(date, "%Y-%m-%d")
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        target_date_normalized = target_date.replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
+        target_date_normalized = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
 
         # Calculate days difference
         days_diff = (target_date_normalized - today).days
