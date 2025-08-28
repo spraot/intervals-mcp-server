@@ -19,6 +19,7 @@ import pathlib
 import re
 import sys
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 os.environ.setdefault("API_KEY", "test")
@@ -340,7 +341,7 @@ def test_create_workout_success(monkeypatch):
         "description": "5m z1\n3x\n- 1m z5\n- 2m z1\n5m z1",
     }
 
-    async def fake_post_request(*args, **kwargs):
+    async def fake_post_request(*_args, **_kwargs):
         return mock_response
 
     monkeypatch.setattr(
@@ -368,7 +369,7 @@ def test_create_workout_api_error(monkeypatch):
     """
     mock_error_response = {"error": True, "message": "Invalid date format"}
 
-    async def fake_post_request(*args, **kwargs):
+    async def fake_post_request(*_args, **_kwargs):
         return mock_error_response
 
     monkeypatch.setattr(
@@ -405,36 +406,40 @@ def test_create_workout_invalid_date():
 
 def test_create_workout_invalid_category():
     """
-    Test create_workout returns an error for invalid category.
+    Test create_workout with category parameter removed (category is now always WORKOUT).
+    This test is kept for backwards compatibility but now just tests normal creation.
     """
-    result = asyncio.run(
-        create_workout(
-            name="Test Workout",
-            description="5m z1",
-            date="2024-01-15",
-            athlete_id="i123456",
-            category="INVALID_CATEGORY",
+    with patch("intervals_mcp_server.server.make_intervals_request") as mock_request:
+        mock_request.return_value = {"id": "test123"}
+        result = asyncio.run(
+            create_workout(
+                name="Test Workout",
+                description="5m z1",
+                date="2024-01-15",
+                athlete_id="i123456",
+            )
         )
-    )
 
-    assert "Error: Invalid category." in result
+        assert "Successfully created workout" in result
 
 
 def test_create_workout_invalid_color():
     """
-    Test create_workout returns an error for invalid color format.
+    Test create_workout with color parameter removed (color is no longer supported).
+    This test is kept for backwards compatibility but now just tests normal creation.
     """
-    result = asyncio.run(
-        create_workout(
-            name="Test Workout",
-            description="5m z1",
-            date="2024-01-15",
-            athlete_id="i123456",
-            color="red",  # Invalid hex format
+    with patch("intervals_mcp_server.server.make_intervals_request") as mock_request:
+        mock_request.return_value = {"id": "test123"}
+        result = asyncio.run(
+            create_workout(
+                name="Test Workout",
+                description="5m z1",
+                date="2024-01-15",
+                athlete_id="i123456",
+            )
         )
-    )
 
-    assert "Error: Color must be a hex color code like #FF0000" in result
+        assert "Successfully created workout" in result
 
 
 def test_create_workout_no_athlete_id(monkeypatch):

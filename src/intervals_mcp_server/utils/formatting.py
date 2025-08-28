@@ -393,7 +393,7 @@ def format_intervals(intervals_data: dict[str, Any], activity_type: str | None =
     if intervals := intervals_data.get("icu_intervals"):
         with Section(parent=main_section, heading="Individual Intervals:") as intervals_section:
             for i, interval in enumerate(intervals, 1):
-                with Section(parent=intervals_section, data=interval, heading=f"[{i}] {interval.get("label", f"Interval {i}")} ({interval.get("type", "Unknown")})") as interval_section:
+                with Section(parent=intervals_section, data=interval, heading=f'[{i}] {interval.get("label", f"Interval {i}")} ({interval.get("type", "Unknown")})') as interval_section:
                     interval_section.append("Duration: {elapsed_time} seconds (moving: {moving_time} seconds)", none_val=0)
                     interval_section.append("Distance: {distance} meters")
                     interval_section.append("Start-End Indices: {start_index}-{end_index}")
@@ -573,7 +573,7 @@ def format_athlete_data(athlete: dict[str, Any]) -> str:  # pylint: disable=loca
                 result += "**Pace**:\n"
                 threshold_pace = sport_setting.get("threshold_pace")
                 if threshold_pace:
-                    result += f"- Threshold Pace: {format_speed(threshold_pace, none_val="N/A")}\n"
+                    result += f'- Threshold Pace: {format_speed(threshold_pace, none_val="N/A")}\n'
 
                 # Pace Zones
                 if sport_setting.get("pace_zones") and sport_setting.get("pace_zone_names"):
@@ -583,9 +583,9 @@ def format_athlete_data(athlete: dict[str, Any]) -> str:  # pylint: disable=loca
                     for i, (zone_name, zone_percent) in enumerate(zip(pace_names, pace_zones)):
                         zone_min_percent = pace_zones[i - 1] if i > 0 else 0
                         if zone_percent >= 999:  # Last zone
-                            result += f"  - **{zone_name}**: {zone_min_percent + 1}%+ threshold ({format_speed(threshold_pace*zone_min_percent*0.01, none_val="N/A")}+)\n"
+                            result += f'  - **{zone_name}**: {zone_min_percent + 1}%+ threshold ({format_speed(threshold_pace*zone_min_percent*0.01, none_val="N/A")}+)\n'
                         else:
-                            result += f"  - **{zone_name}**: {zone_min_percent + 1}-{zone_percent:.1f}% threshold ({format_speed(threshold_pace*zone_min_percent*0.01, none_val="N/A")}-{format_speed(threshold_pace*zone_percent*0.01, none_val="N/A")})\n"
+                            result += f'  - **{zone_name}**: {zone_min_percent + 1}-{zone_percent:.1f}% threshold ({format_speed(threshold_pace*zone_min_percent*0.01, none_val="N/A")}-{format_speed(threshold_pace*zone_percent*0.01, none_val="N/A")})\n'
                 result += "\n"
 
             # Training settings

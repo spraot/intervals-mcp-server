@@ -1403,7 +1403,7 @@ async def get_workout_format_examples() -> str:
         return content
     except FileNotFoundError:
         return "Error: workout_samples.md file not found. Please ensure the file exists in the project root."
-    except Exception as e:
+    except (IOError, OSError) as e:
         return f"Error reading workout_samples.md: {str(e)}"
 
 
@@ -1414,11 +1414,7 @@ async def create_workout(
     date: str,
     athlete_id: str | None = None,
     api_key: str | None = None,
-    category: str = "WORKOUT",
     workout_type: str = "Ride",
-    indoor: bool | None = None,
-    moving_time: int | None = None,
-    color: str | None = None,
 ) -> str:
     """Create a workout event on an athlete's Intervals.icu calendar
 
@@ -1431,11 +1427,7 @@ async def create_workout(
         date: The date for the workout in YYYY-MM-DD format (local date)
         athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
-        category: The event category (default: "WORKOUT", options: WORKOUT, RACE_A, RACE_B, RACE_C, NOTE, HOLIDAY, SICK, INJURED, SET_EFTP, FITNESS_DAYS, SEASON_START, TARGET, SET_FITNESS)
-        workout_type: The activity type for the workout (default: "Ride", options: Ride, Run, Swim, OpenWaterSwim, etc.)
-        indoor: Whether the workout is intended to be done indoors (optional)
-        moving_time: Expected moving time in seconds (optional)
-        color: Hex color code for the event (optional, e.g., "#FF0000")
+        workout_type: The activity type for the workout (default: "Ride", options: Ride, VirtualRide, Run, Swim, OpenWaterSwim, etc.)
 
     Returns:
         Success message with the created event ID or error message
@@ -1447,30 +1439,9 @@ async def create_workout(
 
     # Validate date format
     try:
-        from datetime import datetime
-
         datetime.strptime(date, "%Y-%m-%d")
     except ValueError:
         return "Error: Date must be in YYYY-MM-DD format."
-
-    # Validate category
-    valid_categories = [
-        "WORKOUT",
-        "RACE_A",
-        "RACE_B",
-        "RACE_C",
-        "NOTE",
-        "HOLIDAY",
-        "SICK",
-        "INJURED",
-        "SET_EFTP",
-        "FITNESS_DAYS",
-        "SEASON_START",
-        "TARGET",
-        "SET_FITNESS",
-    ]
-    if category not in valid_categories:
-        return f"Error: Invalid category. Must be one of: {', '.join(valid_categories)}"
 
     # Build the event data with proper date format
     # Convert YYYY-MM-DD to YYYY-MM-DDTHH:MM:SS format
@@ -1483,19 +1454,9 @@ async def create_workout(
         "start_date_local": formatted_date,
         "name": name,
         "description": description,
-        "category": category,
+        "category": "WORKOUT",
         "type": workout_type,
     }
-
-    # Add optional fields if provided
-    if indoor is not None:
-        event_data["indoor"] = indoor
-    if moving_time is not None:
-        event_data["moving_time"] = moving_time
-    if color is not None:
-        if not color.startswith("#") or len(color) != 7:
-            return "Error: Color must be a hex color code like #FF0000"
-        event_data["color"] = color
 
     # Call the Intervals.icu API
     result = await make_intervals_request(
@@ -1513,8 +1474,7 @@ async def create_workout(
     if isinstance(result, dict) and "id" in result:
         event_id = result["id"]
         return f"Successfully created workout '{name}' on {date} (Event ID: {event_id})"
-    else:
-        return "Workout created but response format was unexpected."
+    return "Workout created but response format was unexpected."
 
 
 # Run the server
