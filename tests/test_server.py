@@ -8,7 +8,6 @@ These tests use monkeypatching to mock API responses and verify the formatting a
 - get_event_by_id
 - get_wellness_data
 - get_activity_intervals
-- create_workout
 
 The tests ensure that the server's public API returns expected strings and handles data correctly.
 """
@@ -19,24 +18,21 @@ import pathlib
 import re
 import sys
 from datetime import datetime, timedelta
-from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 os.environ.setdefault("API_KEY", "test")
 os.environ.setdefault("ATHLETE_ID", "i1")
 
 from intervals_mcp_server.server import (  # pylint: disable=wrong-import-position
-    add_or_update_event,
     calculate_date_info,
-    create_workout,
     get_activities,
     get_activity_details,
-    get_activity_intervals,
     get_current_date_and_time_info,
     get_events,
     get_event_by_id,
     get_wellness_data,
-    get_workout_format_examples,
+    get_activity_intervals,
+    add_or_update_event,
 )
 from tests.sample_data import INTERVALS_DATA  # pylint: disable=wrong-import-position
 
@@ -171,6 +167,15 @@ def test_add_or_update_event(monkeypatch):
         "category": "WORKOUT",
         "name": "Test Workout",
         "type": "Ride",
+    }
+
+    _sample_data = {
+        "steps": [
+            {"duration": "15m", "target": "80%", "description": "Warm-up"},
+            {"duration": "3m", "target": "110%", "description": "High-intensity interval"},
+            {"duration": "3m", "target": "80%", "description": "Recovery"},
+            {"duration": "10m", "target": "80%", "description": "Cool-down"},
+        ]
     }
 
     async def fake_post_request(*_args, **_kwargs):
@@ -327,150 +332,3 @@ def test_calculate_date_info_invalid_format():
     result = asyncio.run(calculate_date_info("June 9, 2025"))
     assert "error" in result
     assert result["error"] is True
-
-
-def test_create_workout_success(monkeypatch):
-    """
-    Test create_workout returns a success message when the workout is created successfully.
-    """
-    mock_response = {
-        "id": 12345,
-        "name": "Test Workout",
-        "start_date_local": "2024-01-15",
-        "category": "WORKOUT",
-        "description": "5m z1\n3x\n- 1m z5\n- 2m z1\n5m z1",
-    }
-
-    async def fake_post_request(*_args, **_kwargs):
-        return mock_response
-
-    monkeypatch.setattr(
-        "intervals_mcp_server.server.make_intervals_request", fake_post_request
-    )
-
-    result = asyncio.run(
-        create_workout(
-            name="Test Workout",
-            description="5m z1\n3x\n- 1m z5\n- 2m z1\n5m z1",
-            date="2024-01-15",
-            athlete_id="i123456",
-        )
-    )
-
-    assert (
-        "Successfully created workout 'Test Workout' on 2024-01-15 (Event ID: 12345)"
-        in result
-    )
-
-
-def test_create_workout_api_error(monkeypatch):
-    """
-    Test create_workout returns an error message when the API returns an error.
-    """
-    mock_error_response = {"error": True, "message": "Invalid date format"}
-
-    async def fake_post_request(*_args, **_kwargs):
-        return mock_error_response
-
-    monkeypatch.setattr(
-        "intervals_mcp_server.server.make_intervals_request", fake_post_request
-    )
-
-    result = asyncio.run(
-        create_workout(
-            name="Test Workout",
-            description="5m z1",
-            date="2024-01-15",
-            athlete_id="i123456",
-        )
-    )
-
-    assert "Error creating workout: Invalid date format" in result
-
-
-def test_create_workout_invalid_date():
-    """
-    Test create_workout returns an error for invalid date format.
-    """
-    result = asyncio.run(
-        create_workout(
-            name="Test Workout",
-            description="5m z1",
-            date="2024/01/15",  # Invalid format
-            athlete_id="i123456",
-        )
-    )
-
-    assert "Error: Date must be in YYYY-MM-DD format." in result
-
-
-def test_create_workout_invalid_category():
-    """
-    Test create_workout with category parameter removed (category is now always WORKOUT).
-    This test is kept for backwards compatibility but now just tests normal creation.
-    """
-    with patch("intervals_mcp_server.server.make_intervals_request") as mock_request:
-        mock_request.return_value = {"id": "test123"}
-        result = asyncio.run(
-            create_workout(
-                name="Test Workout",
-                description="5m z1",
-                date="2024-01-15",
-                athlete_id="i123456",
-            )
-        )
-
-        assert "Successfully created workout" in result
-
-
-def test_create_workout_invalid_color():
-    """
-    Test create_workout with color parameter removed (color is no longer supported).
-    This test is kept for backwards compatibility but now just tests normal creation.
-    """
-    with patch("intervals_mcp_server.server.make_intervals_request") as mock_request:
-        mock_request.return_value = {"id": "test123"}
-        result = asyncio.run(
-            create_workout(
-                name="Test Workout",
-                description="5m z1",
-                date="2024-01-15",
-                athlete_id="i123456",
-            )
-        )
-
-        assert "Successfully created workout" in result
-
-
-def test_create_workout_no_athlete_id(monkeypatch):
-    """
-    Test create_workout returns an error when no athlete ID is provided.
-    """
-    # Mock the ATHLETE_ID to be empty
-    monkeypatch.setattr("intervals_mcp_server.server.ATHLETE_ID", "")
-
-    result = asyncio.run(
-        create_workout(name="Test Workout", description="5m z1", date="2024-01-15")
-    )
-
-    assert (
-        "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
-        in result
-    )
-
-
-
-def test_get_workout_format_examples():
-    """
-    Test get_workout_format_examples returns workout format examples from workout_samples.md
-    """
-    result = asyncio.run(get_workout_format_examples())
-
-    # Check that it contains key content from workout_samples.md
-    assert "Intervals.icu Workout Samples" in result
-    assert "Bike Workouts" in result
-    assert "Run Workouts" in result
-    assert "Swim Workouts" in result
-    assert "z1" in result  # Power/pace zones
-    assert "%" in result  # Percentage notation
-    assert "3x" in result  # Interval notation

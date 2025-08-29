@@ -1,8 +1,0 @@
-[MESSAGES CONTROL]
-disable=
-    C0301,  # line-too-long
-    C0302,  # too-many-lines (module too long)
-
-[DESIGN]
-max-args=6
-max-positional-arguments=6
