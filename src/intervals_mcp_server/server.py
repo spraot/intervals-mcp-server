@@ -118,10 +118,6 @@ API_KEY = os.getenv("API_KEY", "")  # Provide default empty string
 ATHLETE_ID = os.getenv("ATHLETE_ID", "")  # Default athlete ID from .env
 USER_AGENT = "intervalsicu-mcp-server/1.0"
 
-# Validate environment variables on import
-if API_KEY == "":
-    raise ValueError("API_KEY environment variable is not set or empty")
-
 # Accept athlete IDs that are either all digits or start with 'i' followed by digits
 if not re.fullmatch(r"i?\d+", ATHLETE_ID):
     raise ValueError(
