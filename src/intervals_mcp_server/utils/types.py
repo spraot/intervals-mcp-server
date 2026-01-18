@@ -64,6 +64,8 @@ class PaceUnits(Enum):
     MINS_KM = "MINS_KM"
     MINS_MILE = "MINS_MILE"
     SECS_500M = "SECS_500M"
+    SECS_400M = "SECS_400M"
+    SECS_250M = "SECS_250M"
 
 
 class ValueUnits(Enum):
@@ -78,6 +80,7 @@ class ValueUnits(Enum):
     WATTS = "w"
     PERCENT_FTP = "%ftp"
     CADENCE = "cadence"
+    PACE = "pace"
 
 
 def float_to_str(value: float) -> str:
@@ -93,6 +96,7 @@ class Value:
     end: Optional[float] = None
     units: Optional[ValueUnits] = None
     target: Optional[HrTarget] = None
+    pace_units: Optional[PaceUnits] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert Value instance to dictionary for JSON serialization."""
@@ -107,6 +111,8 @@ class Value:
             data['units'] = self.units.value
         if self.target is not None:
             data['target'] = self.target.value
+        if self.pace_units is not None:
+            data['pace_units'] = self.pace_units.value
         return data
 
     @classmethod
@@ -123,6 +129,8 @@ class Value:
             kwargs['units'] = ValueUnits(data['units'])
         if 'target' in data:
             kwargs['target'] = HrTarget(data['target'])
+        if 'pace_units' in data:
+            kwargs['pace_units'] = PaceUnits(data['pace_units'])
         return cls(**kwargs)
 
     def to_json(self) -> str:
@@ -143,7 +151,33 @@ class Value:
             return f"{float_to_str(value)}W"
         if self.units in [ValueUnits.CADENCE]:
             return f"{float_to_str(value)}rpm"
+        if self.units in [ValueUnits.PACE]:
+            # Format as mm:ss and append unit suffix; assume input is seconds per chosen unit
+            try:
+                return self._format_pace(value, with_suffix=True)
+            except Exception:  # noqa: BLE001 - formatting fallback
+                return float_to_str(value)
         return float_to_str(value)
+
+    def _format_pace(self, value: float, with_suffix: bool = True) -> str:
+        """Format seconds per unit into mm:ss, optionally with unit suffix."""
+        total_seconds = int(round(value))
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        formatted = f"{minutes}:{seconds:02d}" if minutes > 0 else f"{seconds}s"
+        if not with_suffix:
+            return formatted
+        suffix_map = {
+            PaceUnits.MINS_KM: "/km",
+            PaceUnits.MINS_MILE: "/mi",
+            PaceUnits.SECS_100M: "/100m",
+            PaceUnits.SECS_500M: "/500m",
+            PaceUnits.SECS_100Y: "/100y",
+            PaceUnits.SECS_400M: "/400m",
+            PaceUnits.SECS_250M: "/250m",
+        }
+        suffix = suffix_map.get(self.pace_units, "/km")
+        return f"{formatted}{suffix}"
 
     def _format_units(self) -> str:  # pylint: disable=locally-disabled, too-many-return-statements
         if self.units in [ValueUnits.PERCENT_HR, ValueUnits.HR_ZONE]:
@@ -152,7 +186,7 @@ class Value:
             return "MMP"
         if self.units in [ValueUnits.PERCENT_LTHR]:
             return "LTHR"
-        if self.units in [ValueUnits.PERCENT_PACE, ValueUnits.PACE_ZONE]:
+        if self.units in [ValueUnits.PERCENT_PACE, ValueUnits.PACE_ZONE, ValueUnits.PACE]:
             return "Pace"
         if self.units in [ValueUnits.PERCENT_FTP]:
             return "ftp"
@@ -165,7 +199,27 @@ class Value:
     def __str__(self) -> str:
         val = ""
         if self.start is not None and self.end is not None:
-            val += f"{self._format_value(self.start)}-{self._format_value(self.end)} "
+            if self.units in [ValueUnits.PACE]:
+                # Show suffix once for ranges: e.g., 7:15-7:00/km
+                try:
+                    start_txt = self._format_pace(self.start, with_suffix=False)
+                    end_txt = self._format_pace(self.end, with_suffix=False)
+                    # append suffix once
+                    suffix_map = {
+                        PaceUnits.MINS_KM: "/km",
+                        PaceUnits.MINS_MILE: "/mi",
+                        PaceUnits.SECS_100M: "/100m",
+                        PaceUnits.SECS_500M: "/500m",
+                        PaceUnits.SECS_100Y: "/100y",
+                        PaceUnits.SECS_400M: "/400m",
+                        PaceUnits.SECS_250M: "/250m",
+                    }
+                    suffix = suffix_map.get(self.pace_units, "/km")
+                    val += f"{start_txt}-{end_txt}{suffix} "
+                except Exception:
+                    val += f"{self._format_value(self.start)}-{self._format_value(self.end)} "
+            else:
+                val += f"{self._format_value(self.start)}-{self._format_value(self.end)} "
         elif self.value is not None:
             val += f"{self._format_value(self.value)} "
         if self.units is not None:
@@ -430,6 +484,8 @@ class WorkoutDoc:  # pylint: disable=locally-disabled, too-many-instance-attribu
 
     def to_dict(self) -> Dict[str, Any]:  # pylint: disable=locally-disabled, too-many-branches
         """Convert WorkoutDoc instance to dictionary for JSON serialization."""
+        if self.pace_units is not None and self.steps is not None:
+            self._apply_default_pace_units()
         data = {}
         if self.description is not None:
             data['description'] = self.description
@@ -497,7 +553,10 @@ class WorkoutDoc:  # pylint: disable=locally-disabled, too-many-instance-attribu
             kwargs['options'] = data['options']
         if 'locales' in data:
             kwargs['locales'] = data['locales']
-        return cls(**kwargs)
+        obj = cls(**kwargs)
+        if obj.pace_units is not None and obj.steps is not None:
+            obj._apply_default_pace_units()
+        return obj
 
     def to_json(self) -> str:
         """Convert WorkoutDoc instance to JSON string."""
@@ -516,3 +575,16 @@ class WorkoutDoc:  # pylint: disable=locally-disabled, too-many-instance-attribu
             for step in self.steps:
                 val += step.__str__() + "\n"
         return val
+
+    def _apply_default_pace_units(self) -> None:
+        def apply_to_step(step: 'Step') -> None:
+            if step.pace is not None and step.pace.units == ValueUnits.PACE and step.pace.pace_units is None:
+                step.pace.pace_units = self.pace_units
+            if step._pace is not None and step._pace.units == ValueUnits.PACE and step._pace.pace_units is None:
+                step._pace.pace_units = self.pace_units
+            if step.steps:
+                for s in step.steps:
+                    apply_to_step(s)
+        if self.steps:
+            for st in self.steps:
+                apply_to_step(st)

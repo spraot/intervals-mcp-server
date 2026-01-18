@@ -987,9 +987,19 @@ async def download_workout_zwo(
         raw_response=True,
     )
 
-    if isinstance(result, dict) and "error" in result:
-        error_message = result.get("message", "Unknown error")
-        return f"Error downloading workout: {error_message}"
+    # If raw_response was not honored by API/client wrappers, handle JSON structure
+    if isinstance(result, dict):
+        if result.get("error"):
+            return f"Error downloading workout: {result.get('message', 'Unknown error')}"
+        # Expected fields: workout_file_base64, workout_filename
+        encoded = result.get("workout_file_base64")
+        if not encoded:
+            return "Error: No workout file found"
+        try:
+            decoded_bytes = base64.b64decode(encoded)
+            return decoded_bytes.decode("utf-8", errors="replace")
+        except Exception as e:  # noqa: BLE001
+            return f"Error decoding workout file: {e}"
 
     return result
 

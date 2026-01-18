@@ -319,7 +319,7 @@ def format_event_summary(event: dict[str, Any]) -> str:
     with Section(lines, data=event) as main_section:
         main_section.append("Date: {}", value_key=["start_date_local", "date"])
         main_section.append("ID: {id}")
-        main_section.append("Type: {type}")
+        main_section.append("Type: {}", value=("Race" if event.get("race") else event.get("type")))
         main_section.append("Name: {name}")
         main_section.append("Description: \n{description}")
         main_section.lines[-1] = main_section.lines[-1].strip()
