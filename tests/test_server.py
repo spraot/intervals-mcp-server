@@ -195,19 +195,35 @@ def test_add_or_update_event(monkeypatch):
     assert '"name": "Test Workout"' in result
 
 
+def _capture_requests(monkeypatch):
+    """Record every API call add_or_update_event makes, returning the recorded list."""
+    calls = []
+
+    async def fake_request(*_args, **kwargs):
+        calls.append(kwargs)
+        return {"id": "e123"}
+
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    return calls
+
+
 def test_add_or_update_event_requires_start_date_when_creating(monkeypatch):
     """
     Test add_or_update_event refuses to create an event without a start_date.
     """
-    calls = []
-
-    async def fake_request(*args, **kwargs):
-        calls.append((args, kwargs))
-        return {}
-
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    calls = _capture_requests(monkeypatch)
     result = asyncio.run(add_or_update_event(athlete_id="i1", name="Test Workout", workout_type="Ride"))
     assert "start_date is required when creating an event" in result
+    assert not calls
+
+
+def test_add_or_update_event_requires_name_when_creating(monkeypatch):
+    """
+    Test add_or_update_event refuses to create an event without a name.
+    """
+    calls = _capture_requests(monkeypatch)
+    result = asyncio.run(add_or_update_event(athlete_id="i1", start_date="2024-01-15"))
+    assert "name is required when creating an event" in result
     assert not calls
 
 
@@ -215,13 +231,7 @@ def test_add_or_update_event_rejects_invalid_start_date(monkeypatch):
     """
     Test add_or_update_event rejects a malformed start_date instead of sending it.
     """
-    calls = []
-
-    async def fake_request(*args, **kwargs):
-        calls.append((args, kwargs))
-        return {}
-
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    calls = _capture_requests(monkeypatch)
     result = asyncio.run(
         add_or_update_event(
             athlete_id="i1", start_date="15-01-2024", name="Test Workout", workout_type="Ride"
@@ -231,113 +241,59 @@ def test_add_or_update_event_rejects_invalid_start_date(monkeypatch):
     assert not calls
 
 
-def test_add_or_update_event_keeps_date_when_updating(monkeypatch):
+def test_add_or_update_event_create_sends_full_payload(monkeypatch):
     """
-    Test updating an event without a start_date resends the event's existing date.
+    Test creating an event sends a single POST carrying the category and resolved type.
     """
-    existing = {"id": "e123", "start_date_local": "2024-01-15T00:00:00", "name": "Old Name"}
-    sent = {}
-
-    async def fake_request(*_args, **kwargs):
-        if kwargs.get("method", "GET") == "GET":
-            return existing
-        sent["url"] = kwargs["url"]
-        sent["method"] = kwargs["method"]
-        sent["data"] = kwargs["data"]
-        return {"id": "e123", "start_date_local": "2024-01-15T00:00:00", "name": "New Name"}
-
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
-    result = asyncio.run(
-        add_or_update_event(athlete_id="i1", event_id="e123", name="New Name", workout_type="Ride")
-    )
-    assert sent["method"] == "PUT"
-    assert sent["data"]["start_date_local"] == "2024-01-15T00:00:00"
-    assert "Successfully updated event:" in result
-
-
-def test_add_or_update_event_fails_when_existing_event_unreadable(monkeypatch):
-    """
-    Test updating fails rather than overwriting unspecified fields when the stored
-    event cannot be read.
-    """
-    methods = []
-
-    async def fake_request(*_args, **kwargs):
-        methods.append(kwargs.get("method", "GET"))
-        return {"error": True, "status_code": 404, "message": "404 Not Found"}
-
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    calls = _capture_requests(monkeypatch)
     result = asyncio.run(
         add_or_update_event(
-            athlete_id="i1",
-            event_id="e123",
-            start_date="2024-02-01",
-            name="New Name",
-            workout_type="Ride",
+            athlete_id="i1", start_date="2024-01-15", name="Easy run", moving_time=1800
         )
     )
-    assert "Could not read event e123" in result
-    assert "PUT" not in methods
+    assert len(calls) == 1
+    assert calls[0]["method"] == "POST"
+    data = calls[0]["data"]
+    assert data["start_date_local"] == "2024-01-15T00:00:00"
+    assert data["name"] == "Easy run"
+    assert data["category"] == "WORKOUT"
+    assert data["type"] == "Run"  # guessed from the name
+    assert data["moving_time"] == 1800
+    assert "Successfully created event:" in result
 
 
-def test_add_or_update_event_keeps_unspecified_fields_when_updating(monkeypatch):
+def test_add_or_update_event_update_sends_only_given_fields(monkeypatch):
     """
-    Test updating only the name keeps the event's existing workout steps, duration,
-    distance and category instead of nulling them.
+    Test updating sends one PUT containing only the fields the caller specified, so
+    Intervals.icu leaves everything else untouched.
     """
-    existing = {
-        "id": "e123",
-        "start_date_local": "2024-01-15T00:00:00",
-        "category": "RACE_A",
-        "name": "Old Name",
-        "description": "- 15m 80%\n- 10m 100%",
-        "type": "Ride",
-        "moving_time": 3600,
-        "distance": 40000,
-    }
-    sent = {}
-
-    async def fake_request(*_args, **kwargs):
-        if kwargs.get("method", "GET") == "GET":
-            return existing
-        sent.update(kwargs["data"])
-        return {"id": "e123"}
-
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
-    result = asyncio.run(
-        add_or_update_event(athlete_id="i1", event_id="e123", name="New Name", workout_type="Ride")
-    )
-    assert sent["name"] == "New Name"
-    assert sent["description"] == existing["description"]
-    assert sent["moving_time"] == 3600
-    assert sent["distance"] == 40000
-    assert sent["category"] == "RACE_A"
-    assert sent["start_date_local"] == "2024-01-15T00:00:00"
+    calls = _capture_requests(monkeypatch)
+    result = asyncio.run(add_or_update_event(athlete_id="i1", event_id="e123", name="New Name"))
+    assert len(calls) == 1  # no pre-fetch of the stored event
+    assert calls[0]["method"] == "PUT"
+    assert calls[0]["url"].endswith("/events/e123")
+    assert calls[0]["data"] == {"name": "New Name"}
     assert "Successfully updated event:" in result
 
 
-def test_add_or_update_event_overrides_fields_when_given(monkeypatch):
+def test_add_or_update_event_update_omits_untouched_date_and_type(monkeypatch):
     """
-    Test explicitly supplied fields replace the stored values on an update.
+    Test an update without start_date or workout_type sends neither key, and does not
+    re-guess the type from a new name.
     """
-    existing = {
-        "id": "e123",
-        "start_date_local": "2024-01-15T00:00:00",
-        "category": "WORKOUT",
-        "name": "Old Name",
-        "description": "old steps",
-        "moving_time": 3600,
-        "distance": 40000,
-    }
-    sent = {}
+    calls = _capture_requests(monkeypatch)
+    asyncio.run(add_or_update_event(athlete_id="i1", event_id="e123", name="Recovery spin"))
+    data = calls[0]["data"]
+    assert "start_date_local" not in data
+    assert "type" not in data
+    assert "category" not in data
 
-    async def fake_request(*_args, **kwargs):
-        if kwargs.get("method", "GET") == "GET":
-            return existing
-        sent.update(kwargs["data"])
-        return {"id": "e123"}
 
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+def test_add_or_update_event_update_applies_given_fields(monkeypatch):
+    """
+    Test explicitly supplied fields are sent on an update.
+    """
+    calls = _capture_requests(monkeypatch)
     asyncio.run(
         add_or_update_event(
             athlete_id="i1",
@@ -349,96 +305,21 @@ def test_add_or_update_event_overrides_fields_when_given(monkeypatch):
             distance=5000,
         )
     )
-    assert sent["start_date_local"] == "2024-03-02T00:00:00"
-    assert sent["type"] == "Run"
-    assert sent["moving_time"] == 1800
-    assert sent["distance"] == 5000
-
-
-def test_add_or_update_event_requires_name_when_creating(monkeypatch):
-    """
-    Test add_or_update_event refuses to create an event without a name.
-    """
-    calls = []
-
-    async def fake_request(*args, **kwargs):
-        calls.append((args, kwargs))
-        return {}
-
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
-    result = asyncio.run(add_or_update_event(athlete_id="i1", start_date="2024-01-15"))
-    assert "name is required when creating an event" in result
-    assert not calls
-
-
-def test_add_or_update_event_keeps_name_and_type_when_updating(monkeypatch):
-    """
-    Test updating only the distance keeps the event's existing name and type, and
-    does not re-guess the type from that name.
-    """
-    existing = {
-        "id": "e123",
-        "start_date_local": "2024-01-15T00:00:00",
-        "category": "WORKOUT",
-        "name": "Recovery spin",
+    assert calls[0]["data"] == {
+        "start_date_local": "2024-03-02T00:00:00",
+        "name": "New Name",
+        "moving_time": 1800,
+        "distance": 5000,
         "type": "Run",
-        "description": "old steps",
     }
-    sent = {}
-
-    async def fake_request(*_args, **kwargs):
-        if kwargs.get("method", "GET") == "GET":
-            return existing
-        sent.update(kwargs["data"])
-        return {"id": "e123"}
-
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
-    asyncio.run(add_or_update_event(athlete_id="i1", event_id="e123", distance=5000))
-    assert sent["name"] == "Recovery spin"
-    assert sent["type"] == "Run"
-    assert sent["distance"] == 5000
-    assert sent["description"] == "old steps"
 
 
-def test_add_or_update_event_guesses_type_from_name_when_creating(monkeypatch):
+def test_add_or_update_event_clears_fields_with_empty_values(monkeypatch):
     """
-    Test the workout type is guessed from the name when creating without one.
+    Test the clear sentinels send the empty values the API acts on, not nulls, which
+    Intervals.icu ignores.
     """
-    sent = {}
-
-    async def fake_request(*_args, **kwargs):
-        sent.update(kwargs["data"])
-        return {"id": "e999"}
-
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
-    asyncio.run(add_or_update_event(athlete_id="i1", start_date="2024-01-15", name="Easy run"))
-    assert sent["type"] == "Run"
-    assert sent["name"] == "Easy run"
-
-
-def test_add_or_update_event_clears_fields_with_sentinels(monkeypatch):
-    """
-    Test an empty workout_doc and a 0 duration/distance clear the stored values.
-    """
-    existing = {
-        "id": "e123",
-        "start_date_local": "2024-01-15T00:00:00",
-        "category": "WORKOUT",
-        "name": "Old Name",
-        "type": "Ride",
-        "description": "- 15m 80%",
-        "moving_time": 3600,
-        "distance": 40000,
-    }
-    sent = {}
-
-    async def fake_request(*_args, **kwargs):
-        if kwargs.get("method", "GET") == "GET":
-            return existing
-        sent.update(kwargs["data"])
-        return {"id": "e123"}
-
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    calls = _capture_requests(monkeypatch)
     asyncio.run(
         add_or_update_event(
             athlete_id="i1",
@@ -448,62 +329,30 @@ def test_add_or_update_event_clears_fields_with_sentinels(monkeypatch):
             distance=0,
         )
     )
-    assert sent["description"] is None
-    assert sent["moving_time"] is None
-    assert sent["distance"] is None
-    # Fields without a sentinel are still preserved.
-    assert sent["name"] == "Old Name"
-    assert sent["type"] == "Ride"
-    assert sent["start_date_local"] == "2024-01-15T00:00:00"
+    assert calls[0]["data"] == {"description": "", "moving_time": 0, "distance": 0}
 
 
 def test_add_or_update_event_populated_workout_doc_sets_description(monkeypatch):
     """
-    Test a populated workout_doc replaces the stored description.
+    Test a populated workout_doc is rendered into the description.
     """
-    existing = {
-        "id": "e123",
-        "start_date_local": "2024-01-15T00:00:00",
-        "name": "Old Name",
-        "type": "Ride",
-        "description": "- 15m 80%",
-    }
-    sent = {}
-
-    async def fake_request(*_args, **kwargs):
-        if kwargs.get("method", "GET") == "GET":
-            return existing
-        sent.update(kwargs["data"])
-        return {"id": "e123"}
-
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    calls = _capture_requests(monkeypatch)
     asyncio.run(
         add_or_update_event(
             athlete_id="i1", event_id="e123", workout_doc=WorkoutDoc(description="New plan")
         )
     )
-    assert sent["description"] is not None
-    assert "New plan" in sent["description"]
+    assert "New plan" in calls[0]["data"]["description"]
 
 
-def test_add_or_update_event_create_does_not_fetch(monkeypatch):
+def test_add_or_update_event_rejects_empty_update(monkeypatch):
     """
-    Test creating an event sends a single POST without fetching an existing event.
+    Test an update naming no fields is refused instead of sending an empty body.
     """
-    methods = []
-
-    async def fake_request(*_args, **kwargs):
-        methods.append(kwargs.get("method", "GET"))
-        return {"id": "e999"}
-
-    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
-    result = asyncio.run(
-        add_or_update_event(
-            athlete_id="i1", start_date="2024-01-15", name="Test Workout", workout_type="Ride"
-        )
-    )
-    assert methods == ["POST"]
-    assert "Successfully created event:" in result
+    calls = _capture_requests(monkeypatch)
+    result = asyncio.run(add_or_update_event(athlete_id="i1", event_id="e123"))
+    assert "Nothing to update on event e123" in result
+    assert not calls
 
 
 def test_get_current_date_and_time_info():  # pylint: disable=locally-disabled, too-many-statements

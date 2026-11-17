@@ -623,46 +623,6 @@ def _resolve_workout_type(name: str | None, workout_type: str | None) -> str:
     return "Ride"  # Default
 
 
-def _merge_numeric_field(value: int | None, stored: Any) -> Any:
-    """Merge an optional numeric event field with the value already stored.
-
-    ``None`` means the caller did not specify it, so the stored value is kept.
-    ``0`` is the sentinel for clearing the field. Anything else replaces it.
-    """
-    if value is None:
-        return stored
-    if value == 0:
-        return None
-    return value
-
-
-async def _get_existing_event(
-    athlete_id: str, event_id: str, api_key: str | None = None
-) -> dict[str, Any]:
-    """Return the event currently stored on Intervals.icu.
-
-    Updating an event replaces it, so any field left out of the update would be
-    dropped. Read the stored event first so omitted fields can be sent back
-    unchanged. Raises ``ValueError`` if the event cannot be read, because sending
-    the update anyway would overwrite values the caller never asked to change.
-    """
-    result = await make_intervals_request(
-        url=f"/athlete/{athlete_id}/events/{event_id}", api_key=api_key
-    )
-    if isinstance(result, dict) and "error" in result:
-        raise ValueError(
-            f"Could not read event {event_id} "
-            f"({result.get('message', 'Unknown error')}), so it was not updated. "
-            "Updating it now would overwrite the fields you did not specify."
-        )
-    if not isinstance(result, dict) or not result:
-        raise ValueError(
-            f"Could not read event {event_id}, so it was not updated. "
-            "Updating it now would overwrite the fields you did not specify."
-        )
-    return result
-
-
 @mcp.tool()
 async def delete_event(
     event_id: str,
@@ -738,24 +698,31 @@ async def add_or_update_event( # pylint: disable=locally-disabled, too-many-argu
     """Post event for an athlete to Intervals.icu this follows the event api from intervals.icu
     If event_id is provided, the event will be updated instead of created.
 
+    An update only changes the fields you pass: anything you leave out keeps the value
+    it already has on Intervals.icu.
+
     Args:
         athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
         event_id: The Intervals.icu event ID (optional, will use event_id from .env if not provided)
         start_date: Start date in YYYY-MM-DD format (required when creating an event;
-            when updating, omit it to keep the event on its existing date)
+            when updating, omit it to leave the event's date unchanged)
         name: Name of the activity (required when creating an event; when updating, omit it
-            to keep the event's existing name)
+            to leave the event's name unchanged)
         workout_doc: steps as a list of Step objects (optional, but necessary to define workout
-            steps; when updating, omit it to keep the event's existing steps, or pass an empty
-            object ({}) to clear them)
+            steps; when updating, omit it to leave the event's steps unchanged, or pass an
+            empty object ({}) to clear them)
         workout_type: Workout type (e.g. Ride, Run, Swim, Walk, Row) (optional; when
-            updating, omit it to keep the event's existing type, otherwise it is guessed
+            updating, omit it to leave the event's type unchanged, otherwise it is guessed
             from the name)
         moving_time: Total expected moving time of the workout in seconds (optional; when
-            updating, omit it to keep the event's existing value, or pass 0 to clear it)
+            updating, omit it to leave the event's value unchanged, or pass 0 to clear it).
+            Intervals.icu computes this from the workout steps whenever the event has any,
+            so a value sent alongside workout_doc is overwritten by the computed total
         distance: Total expected distance of the workout in meters (optional; when updating,
-            omit it to keep the event's existing value, or pass 0 to clear it)
+            omit it to leave the event's value unchanged, or pass 0 to clear it). Intervals.icu
+            recomputes it from the workout steps whenever the event has a description, even the
+            empty one left by clearing the steps, so it only sticks on an event with no steps
     
     Example:
         "workout_doc": {
@@ -813,59 +780,42 @@ async def add_or_update_event( # pylint: disable=locally-disabled, too-many-argu
         message = "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
     else:
         try:
-            # An update replaces the event, so fields the caller left out are refilled
-            # from the stored event rather than sent as nulls that would wipe them.
-            existing: dict[str, Any] = {}
-            if event_id:
-                existing = await _get_existing_event(athlete_id, event_id, api_key)
+            # Intervals.icu merges an update: a field left out of the body keeps its
+            # stored value, and an explicit null is ignored. So send only what the
+            # caller specified, and clear a field by sending its empty value.
+            data: dict[str, Any] = {}
 
             if start_date:
-                start_date_local = validate_date(start_date) + "T00:00:00"
-            elif existing.get("start_date_local"):
-                # Keep the event where it is instead of letting the update move it.
-                start_date_local = str(existing["start_date_local"])
-            elif event_id:
-                raise ValueError(
-                    f"Event {event_id} has no start_date_local. "
-                    "Provide start_date to set the date explicitly."
-                )
-            else:
+                data["start_date_local"] = validate_date(start_date) + "T00:00:00"
+            elif not event_id:
                 raise ValueError(
                     "start_date is required when creating an event. Please use YYYY-MM-DD."
                 )
 
             if name is not None:
-                event_name = name
-            elif existing.get("name"):
-                event_name = str(existing["name"])
-            elif event_id:
-                raise ValueError(
-                    f"Event {event_id} has no name. Provide name to set it explicitly."
-                )
-            else:
+                data["name"] = name
+            elif not event_id:
                 raise ValueError("name is required when creating an event.")
 
-            if not workout_type and existing.get("type"):
-                # Don't re-guess the type from the name: keep what the event already is.
-                event_type = str(existing["type"])
-            else:
-                event_type = _resolve_workout_type(event_name, workout_type)
+            if workout_doc is not None:
+                # An empty workout_doc renders to "", which clears the stored steps.
+                data["description"] = str(workout_doc)
+            if moving_time is not None:
+                data["moving_time"] = moving_time  # 0 clears it
+            if distance is not None:
+                data["distance"] = distance  # 0 clears it
 
-            if workout_doc is None:
-                description = existing.get("description")
+            if event_id:
+                if workout_type:
+                    data["type"] = workout_type
+                if not data:
+                    raise ValueError(
+                        f"Nothing to update on event {event_id}. "
+                        "Provide at least one field to change."
+                    )
             else:
-                # An empty workout_doc renders to "" and clears the stored steps.
-                description = str(workout_doc) or None
-
-            data = {
-                "start_date_local": start_date_local,
-                "category": existing.get("category") or "WORKOUT",
-                "name": event_name,
-                "description": description,
-                "type": event_type,
-                "moving_time": _merge_numeric_field(moving_time, existing.get("moving_time")),
-                "distance": _merge_numeric_field(distance, existing.get("distance")),
-            }
+                data["category"] = "WORKOUT"
+                data["type"] = _resolve_workout_type(name, workout_type)
             result = await make_intervals_request(
                 url=f"/athlete/{athlete_id}/events" +("/"+event_id if event_id else ""),
                 api_key=api_key,
@@ -881,7 +831,8 @@ async def add_or_update_event( # pylint: disable=locally-disabled, too-many-argu
             elif isinstance(result, dict):
                 message = f"Successfully {action} event: {json.dumps(result, indent=2)}"
             else:
-                message = f"Event {action} successfully at {start_date_local.split('T')[0]}"
+                event_date = str(data.get("start_date_local", "")).split("T")[0]
+                message = f"Event {action} successfully" + (f" at {event_date}" if event_date else "")
         except ValueError as e:
             message = f"Error: {e}"
     return message
