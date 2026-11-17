@@ -623,6 +623,32 @@ def _resolve_workout_type(name: str | None, workout_type: str | None) -> str:
     return "Ride"  # Default
 
 
+async def _get_existing_start_date_local(
+    athlete_id: str, event_id: str, api_key: str | None = None
+) -> str:
+    """Return the ``start_date_local`` currently stored for an event.
+
+    Updating an event replaces it, so an update that leaves ``start_date_local`` out
+    would move the event. Read the stored value instead and send it back unchanged.
+    Raises ``ValueError`` if the existing date cannot be determined.
+    """
+    result = await make_intervals_request(
+        url=f"/athlete/{athlete_id}/events/{event_id}", api_key=api_key
+    )
+    if isinstance(result, dict) and "error" in result:
+        raise ValueError(
+            f"Could not read the current date of event {event_id} "
+            f"({result.get('message', 'Unknown error')}). "
+            "Provide start_date to set the date explicitly."
+        )
+    if not isinstance(result, dict) or not result.get("start_date_local"):
+        raise ValueError(
+            f"Event {event_id} has no start_date_local. "
+            "Provide start_date to set the date explicitly."
+        )
+    return str(result["start_date_local"])
+
+
 @mcp.tool()
 async def delete_event(
     event_id: str,
@@ -702,7 +728,8 @@ async def add_or_update_event( # pylint: disable=locally-disabled, too-many-argu
         athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
         event_id: The Intervals.icu event ID (optional, will use event_id from .env if not provided)
-        start_date: Start date in YYYY-MM-DD format (optional, defaults to today)
+        start_date: Start date in YYYY-MM-DD format (required when creating an event;
+            when updating, omit it to keep the event on its existing date)
         name: Name of the activity
         workout_doc: steps as a list of Step objects (optional, but necessary to define workout steps)
         workout_type: Workout type (e.g. Ride, Run, Swim, Walk, Row)
@@ -764,11 +791,18 @@ async def add_or_update_event( # pylint: disable=locally-disabled, too-many-argu
     if not athlete_id:
         message = "Error: No athlete ID provided and no default ATHLETE_ID found in environment variables."
     else:
-        if not start_date:
-            start_date = datetime.now().strftime("%Y-%m-%d")
         try:
+            if start_date:
+                start_date_local = validate_date(start_date) + "T00:00:00"
+            elif event_id:
+                # Keep the event where it is instead of letting the update move it.
+                start_date_local = await _get_existing_start_date_local(athlete_id, event_id, api_key)
+            else:
+                raise ValueError(
+                    "start_date is required when creating an event. Please use YYYY-MM-DD."
+                )
             data = {
-                "start_date_local": start_date + "T00:00:00",
+                "start_date_local": start_date_local,
                 "category": "WORKOUT",
                 "name": name,
                 "description": str(workout_doc) if workout_doc else None,
@@ -791,7 +825,7 @@ async def add_or_update_event( # pylint: disable=locally-disabled, too-many-argu
             elif isinstance(result, dict):
                 message = f"Successfully {action} event: {json.dumps(result, indent=2)}"
             else:
-                message = f"Event {action} successfully at {start_date}"
+                message = f"Event {action} successfully at {start_date_local.split('T')[0]}"
         except ValueError as e:
             message = f"Error: {e}"
     return message

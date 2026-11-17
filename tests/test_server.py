@@ -192,6 +192,85 @@ def test_add_or_update_event(monkeypatch):
     assert '"name": "Test Workout"' in result
 
 
+def test_add_or_update_event_requires_start_date_when_creating(monkeypatch):
+    """
+    Test add_or_update_event refuses to create an event without a start_date.
+    """
+    calls = []
+
+    async def fake_request(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {}
+
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    result = asyncio.run(add_or_update_event(athlete_id="i1", name="Test Workout", workout_type="Ride"))
+    assert "start_date is required when creating an event" in result
+    assert not calls
+
+
+def test_add_or_update_event_rejects_invalid_start_date(monkeypatch):
+    """
+    Test add_or_update_event rejects a malformed start_date instead of sending it.
+    """
+    calls = []
+
+    async def fake_request(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {}
+
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    result = asyncio.run(
+        add_or_update_event(
+            athlete_id="i1", start_date="15-01-2024", name="Test Workout", workout_type="Ride"
+        )
+    )
+    assert "Invalid date format" in result
+    assert not calls
+
+
+def test_add_or_update_event_keeps_date_when_updating(monkeypatch):
+    """
+    Test updating an event without a start_date resends the event's existing date.
+    """
+    existing = {"id": "e123", "start_date_local": "2024-01-15T00:00:00", "name": "Old Name"}
+    sent = {}
+
+    async def fake_request(*_args, **kwargs):
+        if kwargs.get("method", "GET") == "GET":
+            return existing
+        sent["url"] = kwargs["url"]
+        sent["method"] = kwargs["method"]
+        sent["data"] = kwargs["data"]
+        return {"id": "e123", "start_date_local": "2024-01-15T00:00:00", "name": "New Name"}
+
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    result = asyncio.run(
+        add_or_update_event(athlete_id="i1", event_id="e123", name="New Name", workout_type="Ride")
+    )
+    assert sent["method"] == "PUT"
+    assert sent["data"]["start_date_local"] == "2024-01-15T00:00:00"
+    assert "Successfully updated event:" in result
+
+
+def test_add_or_update_event_fails_when_existing_date_unknown(monkeypatch):
+    """
+    Test updating without a start_date fails rather than moving the event when the
+    existing date cannot be read.
+    """
+    methods = []
+
+    async def fake_request(*_args, **kwargs):
+        methods.append(kwargs.get("method", "GET"))
+        return {"error": True, "status_code": 404, "message": "404 Not Found"}
+
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    result = asyncio.run(
+        add_or_update_event(athlete_id="i1", event_id="e123", name="New Name", workout_type="Ride")
+    )
+    assert "Could not read the current date of event e123" in result
+    assert "PUT" not in methods
+
+
 def test_get_current_date_and_time_info():  # pylint: disable=locally-disabled, too-many-statements
     """
     Test get_current_date_and_time_info returns current date and time information
