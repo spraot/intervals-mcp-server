@@ -750,9 +750,9 @@ async def add_or_update_event( # pylint: disable=locally-disabled, too-many-argu
             Heart rate (LTHR): {"hr": {"value": "85", "units": "%lthr"}}
             Cadence: {"cadence": {"value": "90", "units": "rpm"}}
             Pace by ftp: {"pace": {"value": "80", "units": "%pace"}}
-            Pace by zone: {"pace": {"value": "Z2", "units": "pace_zone"}}
-            Zone by power: {"power": {"value": "Z2", "units": "power_zone"}}
-            Zone by heart rate: {"hr": {"value": "Z2", "units": "hr_zone"}}
+            Pace by zone: {"pace": {"value": 2, "units": "pace_zone"}}
+            Zone by power: {"power": {"value": 2, "units": "power_zone"}}
+            Zone by heart rate: {"hr": {"value": 2, "units": "hr_zone"}}
         Ranges: Specify ranges for power, heart rate, or cadence:
             {"power": {"start": "80", "end": "90", "units": "%ftp"}}
         Ramps: Instead of a range, indicate a gradual change in intensity (useful for ERG workouts):

@@ -16,6 +16,8 @@ __all__ = [
     'Intensity',
     'PaceUnits',
     'ValueUnits',
+    'as_int',
+    'as_float',
     'Value',
     'Step',
     'SportSettings',
@@ -83,9 +85,36 @@ class ValueUnits(Enum):
     PACE = "pace"
 
 
-def float_to_str(value: float) -> str:
+def as_int(value: Any) -> Any:
+    """Coerce a number or numeric string to int, leaving anything else untouched.
+
+    JSON payloads routinely carry numbers as strings (``{"duration": "900"}``), which
+    the dataclasses below would otherwise store as text and later fail to format.
+    """
+    if value is None or isinstance(value, bool) or isinstance(value, int):
+        return value
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return value
+
+
+def as_float(value: Any) -> Any:
+    """Coerce a number or numeric string to float, leaving anything else untouched."""
+    if value is None or isinstance(value, bool):
+        return value
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return value
+
+
+def float_to_str(value: Any) -> str:
     """Format the value without decimals if it's a whole number."""
-    return str(int(value)) if value.is_integer() else str(value)
+    number = as_float(value)
+    if not isinstance(number, float):
+        return str(value)
+    return str(int(number)) if number.is_integer() else str(number)
 
 
 @dataclass
@@ -120,11 +149,11 @@ class Value:
         """Create Value instance from dictionary."""
         kwargs = {}
         if 'value' in data:
-            kwargs['value'] = data['value']
+            kwargs['value'] = as_float(data['value'])
         if 'start' in data:
-            kwargs['start'] = data['start']
+            kwargs['start'] = as_float(data['start'])
         if 'end' in data:
-            kwargs['end'] = data['end']
+            kwargs['end'] = as_float(data['end'])
         if 'units' in data:
             kwargs['units'] = ValueUnits(data['units'])
         if 'target' in data:
@@ -146,7 +175,8 @@ class Value:
         if self.units in [ValueUnits.PERCENT_HR, ValueUnits.PERCENT_MMP, ValueUnits.PERCENT_LTHR, ValueUnits.PERCENT_PACE, ValueUnits.PERCENT_FTP]:
             return f"{float_to_str(value)}%"
         if self.units in [ValueUnits.POWER_ZONE, ValueUnits.HR_ZONE, ValueUnits.PACE_ZONE]:
-            return f"Z{float_to_str(value)}"
+            text = float_to_str(value)
+            return text if text[:1] in ("Z", "z") else f"Z{text}"
         if self.units in [ValueUnits.WATTS]:
             return f"{float_to_str(value)}W"
         if self.units in [ValueUnits.CADENCE]:
@@ -314,13 +344,13 @@ class Step:  # pylint: disable=locally-disabled, too-many-instance-attributes
         if 'text_locale' in data:
             kwargs['text_locale'] = data['text_locale']
         if 'duration' in data:
-            kwargs['duration'] = data['duration']
+            kwargs['duration'] = as_int(data['duration'])
         if 'distance' in data:
-            kwargs['distance'] = data['distance']
+            kwargs['distance'] = as_float(data['distance'])
         if 'until_lap_press' in data:
             kwargs['until_lap_press'] = data['until_lap_press']
         if 'reps' in data:
-            kwargs['reps'] = data['reps']
+            kwargs['reps'] = as_int(data['reps'])
         if 'warmup' in data:
             kwargs['warmup'] = data['warmup']
         if 'cooldown' in data:
@@ -352,7 +382,7 @@ class Step:  # pylint: disable=locally-disabled, too-many-instance-attributes
         if '_pace' in data:
             kwargs['_pace'] = Value.from_dict(data['_pace'])
         if '_distance' in data:
-            kwargs['_distance'] = data['_distance']
+            kwargs['_distance'] = as_float(data['_distance'])
         return cls(**kwargs)
 
     def to_json(self) -> str:
@@ -368,7 +398,9 @@ class Step:  # pylint: disable=locally-disabled, too-many-instance-attributes
         """Format duration into a human-readable string."""
         if self.duration is None:
             return ""
-        remaining_duration = self.duration
+        remaining_duration = as_int(self.duration)
+        if not isinstance(remaining_duration, int):
+            return str(self.duration)
         val = ""
         if remaining_duration > 3600:
             val += f"{remaining_duration // 3600}h"
@@ -384,9 +416,12 @@ class Step:  # pylint: disable=locally-disabled, too-many-instance-attributes
         """Format distance into a human-readable string."""
         if self.distance is None:
             return ""
-        if self.distance < 1000:
-            return f"{float_to_str(self.distance)}mtr"
-        return f"{float_to_str(self.distance / 1000)}km"
+        distance = as_float(self.distance)
+        if not isinstance(distance, float):
+            return str(self.distance)
+        if distance < 1000:
+            return f"{float_to_str(distance)}mtr"
+        return f"{float_to_str(distance / 1000)}km"
 
     def __str__(self, nested: bool = False) -> str:  # pylint: disable=locally-disabled, too-many-branches
         val = ""
@@ -528,15 +563,15 @@ class WorkoutDoc:  # pylint: disable=locally-disabled, too-many-instance-attribu
         if 'description_locale' in data:
             kwargs['description_locale'] = data['description_locale']
         if 'duration' in data:
-            kwargs['duration'] = data['duration']
+            kwargs['duration'] = as_int(data['duration'])
         if 'distance' in data:
-            kwargs['distance'] = data['distance']
+            kwargs['distance'] = as_float(data['distance'])
         if 'ftp' in data:
-            kwargs['ftp'] = data['ftp']
+            kwargs['ftp'] = as_int(data['ftp'])
         if 'lthr' in data:
-            kwargs['lthr'] = data['lthr']
+            kwargs['lthr'] = as_int(data['lthr'])
         if 'threshold_pace' in data:
-            kwargs['threshold_pace'] = data['threshold_pace']
+            kwargs['threshold_pace'] = as_float(data['threshold_pace'])
         if 'pace_units' in data:
             kwargs['pace_units'] = PaceUnits(data['pace_units'])
         if 'sportSettings' in data:
