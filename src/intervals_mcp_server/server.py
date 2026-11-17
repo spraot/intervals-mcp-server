@@ -623,6 +623,19 @@ def _resolve_workout_type(name: str | None, workout_type: str | None) -> str:
     return "Ride"  # Default
 
 
+def _merge_numeric_field(value: int | None, stored: Any) -> Any:
+    """Merge an optional numeric event field with the value already stored.
+
+    ``None`` means the caller did not specify it, so the stored value is kept.
+    ``0`` is the sentinel for clearing the field. Anything else replaces it.
+    """
+    if value is None:
+        return stored
+    if value == 0:
+        return None
+    return value
+
+
 async def _get_existing_event(
     athlete_id: str, event_id: str, api_key: str | None = None
 ) -> dict[str, Any]:
@@ -734,14 +747,15 @@ async def add_or_update_event( # pylint: disable=locally-disabled, too-many-argu
         name: Name of the activity (required when creating an event; when updating, omit it
             to keep the event's existing name)
         workout_doc: steps as a list of Step objects (optional, but necessary to define workout
-            steps; when updating, omit it to keep the event's existing steps)
+            steps; when updating, omit it to keep the event's existing steps, or pass an empty
+            object ({}) to clear them)
         workout_type: Workout type (e.g. Ride, Run, Swim, Walk, Row) (optional; when
             updating, omit it to keep the event's existing type, otherwise it is guessed
             from the name)
         moving_time: Total expected moving time of the workout in seconds (optional; when
-            updating, omit it to keep the event's existing value)
+            updating, omit it to keep the event's existing value, or pass 0 to clear it)
         distance: Total expected distance of the workout in meters (optional; when updating,
-            omit it to keep the event's existing value)
+            omit it to keep the event's existing value, or pass 0 to clear it)
     
     Example:
         "workout_doc": {
@@ -837,14 +851,20 @@ async def add_or_update_event( # pylint: disable=locally-disabled, too-many-argu
             else:
                 event_type = _resolve_workout_type(event_name, workout_type)
 
+            if workout_doc is None:
+                description = existing.get("description")
+            else:
+                # An empty workout_doc renders to "" and clears the stored steps.
+                description = str(workout_doc) or None
+
             data = {
                 "start_date_local": start_date_local,
                 "category": existing.get("category") or "WORKOUT",
                 "name": event_name,
-                "description": str(workout_doc) if workout_doc else existing.get("description"),
+                "description": description,
                 "type": event_type,
-                "moving_time": moving_time if moving_time is not None else existing.get("moving_time"),
-                "distance": distance if distance is not None else existing.get("distance"),
+                "moving_time": _merge_numeric_field(moving_time, existing.get("moving_time")),
+                "distance": _merge_numeric_field(distance, existing.get("distance")),
             }
             result = await make_intervals_request(
                 url=f"/athlete/{athlete_id}/events" +("/"+event_id if event_id else ""),

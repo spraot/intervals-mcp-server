@@ -36,6 +36,9 @@ from intervals_mcp_server.server import (  # pylint: disable=wrong-import-positi
     add_or_update_event,
     download_workout_zwo,
 )
+from intervals_mcp_server.utils.types import (  # pylint: disable=wrong-import-position
+    WorkoutDoc,
+)
 from tests.sample_data import INTERVALS_DATA  # pylint: disable=wrong-import-position
 
 
@@ -411,6 +414,76 @@ def test_add_or_update_event_guesses_type_from_name_when_creating(monkeypatch):
     asyncio.run(add_or_update_event(athlete_id="i1", start_date="2024-01-15", name="Easy run"))
     assert sent["type"] == "Run"
     assert sent["name"] == "Easy run"
+
+
+def test_add_or_update_event_clears_fields_with_sentinels(monkeypatch):
+    """
+    Test an empty workout_doc and a 0 duration/distance clear the stored values.
+    """
+    existing = {
+        "id": "e123",
+        "start_date_local": "2024-01-15T00:00:00",
+        "category": "WORKOUT",
+        "name": "Old Name",
+        "type": "Ride",
+        "description": "- 15m 80%",
+        "moving_time": 3600,
+        "distance": 40000,
+    }
+    sent = {}
+
+    async def fake_request(*_args, **kwargs):
+        if kwargs.get("method", "GET") == "GET":
+            return existing
+        sent.update(kwargs["data"])
+        return {"id": "e123"}
+
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    asyncio.run(
+        add_or_update_event(
+            athlete_id="i1",
+            event_id="e123",
+            workout_doc=WorkoutDoc(),
+            moving_time=0,
+            distance=0,
+        )
+    )
+    assert sent["description"] is None
+    assert sent["moving_time"] is None
+    assert sent["distance"] is None
+    # Fields without a sentinel are still preserved.
+    assert sent["name"] == "Old Name"
+    assert sent["type"] == "Ride"
+    assert sent["start_date_local"] == "2024-01-15T00:00:00"
+
+
+def test_add_or_update_event_populated_workout_doc_sets_description(monkeypatch):
+    """
+    Test a populated workout_doc replaces the stored description.
+    """
+    existing = {
+        "id": "e123",
+        "start_date_local": "2024-01-15T00:00:00",
+        "name": "Old Name",
+        "type": "Ride",
+        "description": "- 15m 80%",
+    }
+    sent = {}
+
+    async def fake_request(*_args, **kwargs):
+        if kwargs.get("method", "GET") == "GET":
+            return existing
+        sent.update(kwargs["data"])
+        return {"id": "e123"}
+
+    monkeypatch.setattr("intervals_mcp_server.server.make_intervals_request", fake_request)
+    asyncio.run(
+        add_or_update_event(
+            athlete_id="i1", event_id="e123", workout_doc=WorkoutDoc(description="New plan")
+        )
+    )
+    assert sent["description"] is not None
+    assert "New plan" in sent["description"]
 
 
 def test_add_or_update_event_create_does_not_fetch(monkeypatch):
